@@ -1,4 +1,4 @@
-# MOAI 
+# MOAI for mp6050 with madgwick filter
 
 <img src="Moai.jpg"
 width="400" height="400">
