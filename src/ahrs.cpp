@@ -69,17 +69,19 @@ namespace arhs
             filter.updateIMU(gx, gy, gz, ax, ay, az);
 
             // Get Euler angles (roll, pitch, yaw)
-            float roll = -filter.getRoll();
-            float pitch = filter.getPitch();
-            float yaw = -filter.getYaw();
+            // float roll = filter.getRoll();
+            // float pitch = filter.getPitch();
+            // float yaw = filter.getYaw();
 
             pData[0] = ax;
             pData[1] = ay;
             pData[2] = az;
             
-            pData[3] = yaw;
-            pData[4] = pitch;
-            pData[5] = roll;
+            // pData[3] = yaw;
+            // pData[4] = pitch;
+            // pData[5] = roll;
+
+            filter.getQuaternion(pData + 6);
 
             // Print angles with Serial.printf, right-aligned and 6 digits (3 decimal places)
             // Serial.printf("Roll: %6.3f\tPitch: %6.3f\tYaw: %6.3f\n", roll, pitch, yaw);

@@ -34,7 +34,7 @@ const int statusLedPin = 0;
 const int motorLedPin = 1;
 const int batteryAnalogPin = 0;
 
-String strTitleMsg = "it is MOAI-C3 (ARHS) revision 1";
+String strTitleMsg = "it is MOAI-C3 (ARHS) revision 3";
 
 String strHelpMsg = "command list\n\
 help : show this message\n\
@@ -89,12 +89,11 @@ struct S_Udp_IMU_RawData_Packet
   uint16_t dev_id;
   uint16_t fire_count;
 
-  //quaternion
+  // quaternion
   float qw;
   float qx;
   float qy;
   float qz;
-
 };
 
 static S_Udp_IMU_RawData_Packet packet;
@@ -110,7 +109,6 @@ String processCommand(String _strLine)
     String _result = "OK";
 
     String cmd = g_MainParser.getToken(0);
-    
 
     if (cmd == "help")
     {
@@ -300,7 +298,6 @@ String processCommand(String _strLine)
   {
     return "NOK";
   }
-  
 }
 
 Task task_Cmd(
@@ -372,7 +369,6 @@ void configModeCallback(WiFiManager *myWiFiManager)
 
 void setup()
 {
-
   // io setup
   for (int i = 0; i < sizeof(ledPins) / sizeof(ledPins[0]); i++)
   {
@@ -392,22 +388,23 @@ void setup()
 
   Serial.begin(115200);
 
-  while (!Serial)
-    ;
-
   g_Config.load();
 
   WiFiManager wifiManager;
 
-  if (digitalRead(buttonPins[setupButtonPin]) == LOW)
+  if (digitalRead(buttonPins[setupButtonPin]) == LOW && digitalRead(buttonPins[triggerButtonPin]) == LOW)
   {
-    
+
     g_Config.clear();
 
     // ap mode enter signal
-    digitalWrite(ledPins[motorLedPin], HIGH);
-    delay(500);
-    digitalWrite(ledPins[motorLedPin], LOW);
+    for (int i = 0; i < 3; i++)
+    {
+      digitalWrite(ledPins[motorLedPin], HIGH);
+      delay(100);
+      digitalWrite(ledPins[motorLedPin], LOW);
+      delay(100);
+    }
 
     // 사용자 정의 매개변수 (장치 번호를 위한)
     WiFiManagerParameter custom_device_number("device_number", "장치 번호", String(g_Config.mDeviceNumber).c_str(), 10);
@@ -475,9 +472,15 @@ void setup()
   }
   else
   {
+    // station mode
+    
+    digitalWrite(ledPins[statusLedPin], HIGH);
+    delay(100);
+    digitalWrite(ledPins[statusLedPin], LOW);
+    delay(100);
+
     wifiManager.autoConnect();
     Serial.println("\nConnected to WiFi network!");
-    // digitalWrite(LED1_PIN, HIGH);
   }
 
   udpAddress = g_Config.mTargetIp;
@@ -493,17 +496,17 @@ void setup()
 
   Serial.printf("target address : %s:%d\n", udpAddress.c_str(), udpPort);
 
-  digitalWrite(ledPins[statusLedPin], HIGH);
-  delay(500);
-  digitalWrite(ledPins[statusLedPin], LOW);
+  digitalWrite(ledPins[motorLedPin], HIGH);
+  delay(250);
+  digitalWrite(ledPins[motorLedPin], LOW);
+  delay(50);
 
-  //imu setup
-  // initDmp(g_Config.mOffsets); // start dmp
+  // imu setup
   arhs::setup();
   arhs::setGyroOffsets(
-    g_Config.mOffsets[3] / 100.0, 
-    g_Config.mOffsets[4] / 100.0, 
-    g_Config.mOffsets[5] / 100.0);
+      g_Config.mOffsets[3] / 100.0,
+      g_Config.mOffsets[4] / 100.0,
+      g_Config.mOffsets[5] / 100.0);
 
   digitalWrite(ledPins[statusLedPin], HIGH);
 
@@ -517,34 +520,52 @@ void setup()
   task_Cmd.enable();
   task_Packet.enable();
 
-  // delay(100);
   Serial.println(strTitleMsg);
 }
 
 void loop()
 {
-  // if(arhs::updateXZY(imudata)) {
-  if(arhs::updateXYZ(imudata)) {
+  if (arhs::updateXYZ(imudata))
+  {
     if (bVerbose)
     {
       Serial.printf("yaw:%.2f pitch:%.2f roll:%.2f \n", imudata[3], imudata[4], imudata[5]);
     }
   }
 
-  // if (getDmpReady())
-  // {
-  //   // if (getAccYpr(imudata))
-  //   // if(getAccel(imudata))
-  //   if(getQuaternion( &(imudata[6])) )
-  //   {
-  //     if (bVerbose)
-  //     {
-  //       Serial.printf("ax:%.2f ay:%.2f az:%.2f ", imudata[0], imudata[1], imudata[2]);
-  //       Serial.printf("yaw:%.2f pitch:%.2f roll:%.2f ", imudata[3], imudata[4], imudata[5]);
-  //       Serial.printf("qw:%.2f qx:%.2f qy:%.2f qz:%.2f\n", imudata[6], imudata[7], imudata[8], imudata[9]);
-  //     }
-  //   }
-  // }
+  {
+    static int btnTrigerStatus = 0;
+    static unsigned long btnTrigerTime = 0;
+
+    switch (btnTrigerStatus)
+    {
+    case 0:
+      if (digitalRead(buttonPins[triggerButtonPin]) == LOW && digitalRead(buttonPins[setupButtonPin]) == HIGH)
+      {
+        btnTrigerStatus = 1;
+        btnTrigerTime = millis();
+        packet.fire_count++;
+        Serial.println("fire count : " + String(packet.fire_count));
+        digitalWrite(ledPins[motorLedPin], HIGH);
+      }
+      break;
+    case 1:
+      if (digitalRead(buttonPins[triggerButtonPin]) == HIGH)
+      {
+        btnTrigerStatus = 2;
+      }
+      break;
+    case 2: // wait cool time
+      if (millis() - btnTrigerTime > 150)
+      {
+        btnTrigerStatus = 0;
+        digitalWrite(ledPins[motorLedPin], LOW);
+      }
+      break;
+    default:
+      break;
+    }
+  }
 
   runner.execute();
 }
