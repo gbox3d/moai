@@ -1,13 +1,11 @@
 #include <Arduino.h>
 #include <TaskScheduler.h>
-#include <WiFi.h>
 // #include <WiFiManager.h> // WiFiManager 라이브러리를 포함
+#include <WiFi.h>
 #include <AsyncUDP.h>
 
 #include <tonkey.hpp>
-
 #include "config.hpp"
-
 #include "moai_imu.hpp"
 
 #if defined(LOLIN_D32)
@@ -35,7 +33,7 @@ const int statusLedPin = 0;
 const int motorLedPin = 1;
 const int batteryAnalogPin = 0;
 
-String strTitleMsg = "it is MOAI-C3(DMP) revision 1";
+String strTitleMsg = "it is MOAI-C3 (DMP) revision 1";
 
 String strHelpMsg = "command list\n\
 help : show this message\n\
@@ -49,6 +47,9 @@ load : load config\n\
 clear : clear config\n\
 reboot : reboot esp32\n\
 print : print config\n\
+imu start|stop|zero|verbose|status : imu control\n\
+wifi scan|setup_sta <ssid> <password>|connect <ssid> <password>| \n\
+wifi disconnect|status|ip|mac|rssi|gateway|dns|start_broadcast|stop_broadcast|send <ip> <port> <msg> : wifi control\n\
 ";
 
 String strBroadCastMsg;
@@ -59,16 +60,12 @@ tonkey g_MainParser;
 Scheduler runner;
 
 bool bVerbose = false;
-
-// long total_Elapsed = 0;
-// long average_Elapsed = 0;
-// long average_Count = 0;
+bool bImuInit = false;
 
 //--------udp network code
 AsyncUDP udp;
 String udpAddress;
 int udpPort = 9250;
-
 
 struct S_Udp_IMU_RawData_Packet
 {
@@ -103,6 +100,13 @@ struct S_Udp_IMU_RawData_Packet
 
 static S_Udp_IMU_RawData_Packet packet;
 static float imudata[10];
+
+Task task_udpBroadCast(
+    5000, TASK_FOREVER, []()
+    {
+      udp.broadcastTo(strBroadCastMsg.c_str(), localUdpPort);
+      // Serial.println("udp broadcast");
+    });
 
 String processCommand(String _strLine)
 {
@@ -246,7 +250,6 @@ String processCommand(String _strLine)
       String _strCmd = g_MainParser.getToken(1);
       if (_strCmd == "start")
       {
-        initDmp(g_Config.mOffsets);
       }
       else if (_strCmd == "stop")
       {
@@ -255,22 +258,9 @@ String processCommand(String _strLine)
       else if (_strCmd == "zero")
       {
         doZero();
-      }
-      else if (_strCmd == "offset")
-      {
-        int16_t *pOffset = GetActiveOffset();
-        _result = String(pOffset[0]) + "\n" +
-                  String(pOffset[1]) + "\n" +
-                  String(pOffset[2]) + "\n" +
-                  String(pOffset[3]) + "\n" +
-                  String(pOffset[4]) + "\n" +
-                  String(pOffset[5]) + "\nOK";
-      }
-      else if (_strCmd == "saveOffset")
-      {
+
         int16_t *pOffset = GetActiveOffset();
         memcpy(g_Config.mOffsets, pOffset, sizeof(int16_t) * 6);
-        g_Config.save();
       }
       else if (_strCmd == "verbose")
       {
@@ -278,28 +268,134 @@ String processCommand(String _strLine)
       }
       else if (_strCmd == "status")
       {
+        int16_t *pOffset = GetActiveOffset();
         _result = String("ax : ") + String(imudata[0]) + "\n" +
                   String("ay : ") + String(imudata[1]) + "\n" +
                   String("az : ") + String(imudata[2]) + "\n" +
                   String("yaw : ") + String(imudata[3]) + "\n" +
                   String("pitch : ") + String(imudata[4]) + "\n" +
-                  String("roll : ") + String(imudata[5]) + "\nOK";
+                  String("roll : ") + String(imudata[5]) + "\n" +
+                  String("qw : ") + String(imudata[6]) + "\n" +
+                  String("qx : ") + String(imudata[7]) + "\n" +
+                  String("qy : ") + String(imudata[8]) + "\n" +
+                  String("qz : ") + String(imudata[9]) + "\n" +
+                  String("offset0 : ") + String(pOffset[0]) + "\n" +
+                  String("offset1 : ") + String(pOffset[1]) + "\n" +
+                  String("offset2 : ") + String(pOffset[2]) + "\n" +
+                  String("offset3 : ") + String(pOffset[3]) + "\n" +
+                  String("offset4 : ") + String(pOffset[4]) + "\n" +
+                  String("offset5 : ") + String(pOffset[5]) + "\nOK";
       }
-
       else
       {
         _result = "FAIL";
       }
     }
-    else if (cmd == "dmp")
+
+    else if (cmd == "wifi")
     {
+      cmd = g_MainParser.getToken(1);
+      if ((cmd == "scan"))
+      {
+        int n = WiFi.scanNetworks();
+        Serial.println("scan done");
+        if (n == 0)
+        {
+          Serial.println("no networks found");
+          _result = "no networks found\nOK";
+        }
+        else
+        {
+          _result = String(n) + " networks found\nOK";
+
+          for (int i = 0; i < n; i++)
+          {
+            _result += String(i + 1) + ": " + WiFi.SSID(i) + " (" + String(WiFi.RSSI(i)) + ") " + ((WiFi.encryptionType(i) == WIFI_AUTH_OPEN) ? " " : "*") + "\n";
+          }
+        }
+        // Serial.println("");
+      }
+      else if ((cmd == "setup_sta") && (g_MainParser.getTokenCount() > 2))
+      {
+        String _strAp = g_MainParser.getToken(2);
+        String _strPassword = g_MainParser.getToken(3);
+
+        g_Config.mStrAp = _strAp;
+        g_Config.mStrPassword = _strPassword;
+
+        WiFi.mode(WIFI_STA);
+        WiFi.begin(_strAp.c_str(), _strPassword.c_str());
+      }
+      else if ((cmd == "connect") && (g_MainParser.getTokenCount() > 2))
+      {
+        g_Config.mStrAp = g_MainParser.getToken(2);
+        g_Config.mStrPassword = g_MainParser.getToken(3);
+      }
+      else if ((cmd == "disconnect"))
+      {
+        WiFi.disconnect();
+      }
+      else if ((cmd == "status"))
+      {
+        _result = String("WiFi status: " + WiFi.status()) + "\nOK";
+        // Serial.print("WiFi status: ");
+        // Serial.println(WiFi.status());
+      }
+      else if ((cmd == "ip"))
+      {
+        // Serial.print("IP address: ");
+        // Serial.println(WiFi.localIP());
+        _result = String("IP address: " + WiFi.localIP().toString()) + "\nOK";
+      }
+      else if ((cmd == "mac"))
+      {
+        // Serial.print("MAC address: ");
+        // Serial.println(WiFi.macAddress());
+        _result = String("MAC address: " + WiFi.macAddress()) + "\nOK";
+      }
+      else if ((cmd == "rssi"))
+      {
+        // Serial.print("RSSI: ");
+        // Serial.println(WiFi.RSSI());
+        _result = String("RSSI: " + String(WiFi.RSSI())) + "\nOK";
+      }
+      else if ((cmd == "gateway"))
+      {
+        // Serial.print("Gateway: ");
+        // Serial.println(WiFi.gatewayIP());
+        _result = String("Gateway: " + WiFi.gatewayIP().toString()) + "\nOK";
+      }
+      else if ((cmd == "dns"))
+      {
+        // Serial.print("DNS: ");
+        // Serial.println(WiFi.dnsIP());
+        _result = String("DNS: " + WiFi.dnsIP().toString()) + "\nOK";
+      }
+      else if (cmd == "start_broadcast")
+      {
+        task_udpBroadCast.enable();
+      }
+      else if (cmd == "stop_broadcast")
+      {
+        task_udpBroadCast.disable();
+      }
+      else if (cmd == "send")
+      {
+        IPAddress serverIP;
+        serverIP.fromString(g_MainParser.getToken(1));
+        unsigned int port = g_MainParser.getToken(2).toInt();
+
+        String msg = g_MainParser.getToken(3);
+
+        udp.writeTo((const uint8_t *)msg.c_str(), msg.length(), serverIP, port);
+      }
     }
     else
     {
       _result = "FAIL";
     }
+
     return _result;
-    // Serial.println(_result);
   }
   else
   {
@@ -383,6 +479,11 @@ void setup()
 
   Serial.begin(115200);
 
+  g_Config.load();
+
+  udpAddress = g_Config.mTargetIp;
+  udpPort = g_Config.mTargetPort;
+
   // io setup
   for (int i = 0; i < sizeof(ledPins) / sizeof(ledPins[0]); i++)
   {
@@ -399,8 +500,6 @@ void setup()
   {
     pinMode(analogPins[i], INPUT);
   }
-
-  g_Config.load();
 
   // connect to wifi
   WiFi.onEvent(WiFiEvent);
@@ -428,37 +527,77 @@ void setup()
   // imu setup
   initDmp(g_Config.mOffsets); // start dmp
 
-  digitalWrite(ledPins[statusLedPin], HIGH);
-
-  Serial.println("imu init done");
-
+  // task setup
   runner.init();
-  
+
   runner.addTask(task_Cmd);
   runner.addTask(task_Packet);
+  runner.addTask(task_udpBroadCast);
 
   task_Cmd.enable();
   task_Packet.enable();
+  task_udpBroadCast.enable();
 
-  Serial.println(strTitleMsg);
+  // Serial.println(strTitleMsg);
 }
 
-void loop()
+void _updateImu()
 {
   if (getDmpReady())
   {
     // if (getAccYpr(imudata))
     // if(getAccel(imudata))
-    if(getQuaternion( &(imudata[6])) )
+    if (getQuaternion(&(imudata[6])))
     {
-      // if (bVerbose)
+      if (bVerbose)
       {
         // Serial.printf("ax:%.2f ay:%.2f az:%.2f ", imudata[0], imudata[1], imudata[2]);
         // Serial.printf("yaw:%.2f pitch:%.2f roll:%.2f ", imudata[3], imudata[4], imudata[5]);
-        // Serial.printf("qw:%.2f qx:%.2f qy:%.2f qz:%.2f\n", imudata[6], imudata[7], imudata[8], imudata[9]);
+        Serial.printf("qw:%.2f qx:%.2f qy:%.2f qz:%.2f\n", imudata[6], imudata[7], imudata[8], imudata[9]);
       }
     }
   }
+}
+
+void _updateTrigger() // trigger button process
+{
+  static int btnTrigerStatus = 0;
+  static unsigned long btnTrigerTime = 0;
+
+  switch (btnTrigerStatus)
+  {
+  case 0:
+    if (digitalRead(buttonPins[triggerButtonPin]) == LOW && digitalRead(buttonPins[setupButtonPin]) == HIGH)
+    {
+      btnTrigerStatus = 1;
+      btnTrigerTime = millis();
+      packet.fire_count++;
+      Serial.println("fire count : " + String(packet.fire_count));
+      digitalWrite(ledPins[motorLedPin], HIGH);
+    }
+    break;
+  case 1:
+    if (digitalRead(buttonPins[triggerButtonPin]) == HIGH)
+    {
+      btnTrigerStatus = 2;
+    }
+    break;
+  case 2: // wait cool time
+    if (millis() - btnTrigerTime > 300)
+    {
+      btnTrigerStatus = 0;
+      digitalWrite(ledPins[motorLedPin], LOW);
+    }
+    break;
+  default:
+    break;
+  }
+}
+
+void loop()
+{
+  _updateImu();
+  _updateTrigger();
 
   runner.execute();
 }
