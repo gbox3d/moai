@@ -31,11 +31,15 @@ namespace arhs
         microsPrevious = micros();
 
         Wire.begin();
-        // mpu6050.begin();
+        mpu6050.begin();
+
         filter.begin(25); // 25Hz sample rate
         mpu6050.setGyroOffsets(gyOffsetX, gyOffsetY, gyOffsetZ);
-
-        mpu6050.begin(); // 왜 2 번?
+        // mpu6050.writeMPU6050(MPU6050_SMPLRT_DIV, 0x00);
+        // mpu6050.writeMPU6050(MPU6050_CONFIG, 0x00);
+        mpu6050.writeMPU6050(MPU6050_GYRO_CONFIG, 0x08); // 새로운 자이로 오브셋값을 적용하기 위해 0x08로 설정  
+        // mpu6050.writeMPU6050(MPU6050_ACCEL_CONFIG, 0x00);
+        // mpu6050.writeMPU6050(MPU6050_PWR_MGMT_1, 0x01);
 
     }   
 
