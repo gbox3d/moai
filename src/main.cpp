@@ -1,6 +1,7 @@
 #include <Arduino.h>
 #include <TaskScheduler.h>
-#include <WiFiManager.h> // WiFiManager 라이브러리를 포함
+#include <WiFi.h>
+// #include <WiFiManager.h> // WiFiManager 라이브러리를 포함
 #include <AsyncUDP.h>
 
 #include <tonkey.hpp>
@@ -50,6 +51,9 @@ reboot : reboot esp32\n\
 print : print config\n\
 ";
 
+String strBroadCastMsg;
+unsigned int localUdpPort = 7204;
+
 CCongifData g_Config;
 tonkey g_MainParser;
 Scheduler runner;
@@ -64,6 +68,7 @@ bool bVerbose = false;
 AsyncUDP udp;
 String udpAddress;
 int udpPort = 9250;
+
 
 struct S_Udp_IMU_RawData_Packet
 {
@@ -89,12 +94,11 @@ struct S_Udp_IMU_RawData_Packet
   uint16_t dev_id;
   uint16_t fire_count;
 
-  //quaternion
+  // quaternion
   float qw;
   float qx;
   float qy;
   float qz;
-
 };
 
 static S_Udp_IMU_RawData_Packet packet;
@@ -110,7 +114,6 @@ String processCommand(String _strLine)
     String _result = "OK";
 
     String cmd = g_MainParser.getToken(0);
-    
 
     if (cmd == "help")
     {
@@ -282,7 +285,7 @@ String processCommand(String _strLine)
                   String("pitch : ") + String(imudata[4]) + "\n" +
                   String("roll : ") + String(imudata[5]) + "\nOK";
       }
-      
+
       else
       {
         _result = "FAIL";
@@ -302,7 +305,6 @@ String processCommand(String _strLine)
   {
     return "NOK";
   }
-  
 }
 
 Task task_Cmd(
@@ -354,26 +356,32 @@ void WiFiEvent(WiFiEvent_t event)
 {
   switch (event)
   {
-  case SYSTEM_EVENT_STA_DISCONNECTED:
-    digitalWrite(ledPins[statusLedPin], LOW); // WiFi 연결 해제 시 LED 끄기
-    break;
   case SYSTEM_EVENT_STA_CONNECTED:
+    Serial.println("Connected to WiFi");
+    digitalWrite(ledPins[statusLedPin], HIGH);
+
+    break;
+  case SYSTEM_EVENT_STA_DISCONNECTED:
+    Serial.println("Disconnected from WiFi");
+    digitalWrite(ledPins[statusLedPin], LOW);
+    break;
   case SYSTEM_EVENT_STA_GOT_IP:
-    digitalWrite(ledPins[statusLedPin], HIGH); // WiFi 연결 시 LED 켜기
+    Serial.print("Got IP: ");
+    Serial.println(WiFi.localIP());
     break;
   default:
     break;
   }
 }
 
-void configModeCallback(WiFiManager *myWiFiManager)
-{
-  Serial.println("#AP mode started. Please enter config.");
-  digitalWrite(ledPins[statusLedPin], HIGH);
-}
-
 void setup()
 {
+  String chipId = String((uint32_t)ESP.getEfuseMac(), HEX);
+  chipId.toUpperCase(); // 대문자로 변환
+
+  strBroadCastMsg = "#BC__BSQ-" + chipId;
+
+  Serial.begin(115200);
 
   // io setup
   for (int i = 0; i < sizeof(ledPins) / sizeof(ledPins[0]); i++)
@@ -392,120 +400,40 @@ void setup()
     pinMode(analogPins[i], INPUT);
   }
 
-  Serial.begin(115200);
-
-  while (!Serial)
-    ;
-
   g_Config.load();
 
-  WiFiManager wifiManager;
+  // connect to wifi
+  WiFi.onEvent(WiFiEvent);
+  WiFi.mode(WIFI_STA);
 
-  if (digitalRead(buttonPins[setupButtonPin]) == LOW)
+  if (g_Config.mStrAp.length() > 0)
   {
-    
-    // g_Config.clear();
-
-    // ap mode enter signal
-    digitalWrite(ledPins[motorLedPin], HIGH);
-    delay(500);
-    digitalWrite(ledPins[motorLedPin], LOW);
-
-    // 사용자 정의 매개변수 (장치 번호를 위한)
-    WiFiManagerParameter custom_device_number("device_number", "장치 번호", String(g_Config.mDeviceNumber).c_str(), 10);
-    WiFiManagerParameter custom_target_ip("target_ip", "타겟 IP", g_Config.mTargetIp.c_str(), 16);
-    WiFiManagerParameter custom_target_port("target_port", "타겟 포트", String(g_Config.mTargetPort).c_str(), 6);
-
-    WiFiManagerParameter custom_offset0("offset0", "Gyro X offset", String(g_Config.mOffsets[0]).c_str(), 6);
-    WiFiManagerParameter custom_offset1("offset1", "Gyro Y offset", String(g_Config.mOffsets[1]).c_str(), 6);
-    WiFiManagerParameter custom_offset2("offset2", "Gyro Z offset", String(g_Config.mOffsets[2]).c_str(), 6);
-    WiFiManagerParameter custom_offset3("offset3", "Accel X offset", String(g_Config.mOffsets[3]).c_str(), 6);
-    WiFiManagerParameter custom_offset4("offset4", "Accel Y offset", String(g_Config.mOffsets[4]).c_str(), 6);
-    WiFiManagerParameter custom_offset5("offset5", "Accel Z offset", String(g_Config.mOffsets[5]).c_str(), 6);
-
-    // 'Reset Settings'라는 이름의 추가 메뉴 항목을 만들어서 WiFi 설정을 리셋할 수 있게 함
-    // WiFiManager에 장치 번호 매개변수 추가
-    wifiManager.addParameter(&custom_device_number);
-    wifiManager.addParameter(&custom_target_ip);
-    wifiManager.addParameter(&custom_target_port);
-
-    wifiManager.addParameter(&custom_offset0);
-    wifiManager.addParameter(&custom_offset1);
-    wifiManager.addParameter(&custom_offset2);
-    wifiManager.addParameter(&custom_offset3);
-    wifiManager.addParameter(&custom_offset4);
-    wifiManager.addParameter(&custom_offset5);
-
-    // WiFiManager에 AP 모드 콜백 설정
-    wifiManager.setAPCallback(configModeCallback);
-    Serial.println("Resetting WiFi settings...");
-    wifiManager.resetSettings();
-
-    // ESP32 칩셋 ID를 얻어서 문자열로 변환
-    String chipId = String((uint32_t)ESP.getEfuseMac(), HEX);
-    chipId.toUpperCase(); // 대문자로 변환
-
-    // AP 모드의 이름을 "BSQ-"와 칩셋 ID의 조합으로 설정
-    String ssid = "BSQ-" + chipId;
-    const char *ssid_ptr = ssid.c_str(); // const char* 타입으로 변환
-
-    // 여기서 "AutoConnectAP"는 ESP32가 AP 모드로 전환했을 때 나타나는 네트워크의 이름입니다.
-    // "password"는 AP 모드의 비밀번호입니다 (최소 8자 필요).
-    // 이 부분은 필요에 따라 수정하면 됩니다.
-    wifiManager.autoConnect(ssid_ptr, "123456789");
-
-    g_Config.mDeviceNumber = String(custom_device_number.getValue()).toInt();
-    g_Config.mTargetIp = custom_target_ip.getValue();
-    g_Config.mTargetPort = String(custom_target_port.getValue()).toInt();
-
-    g_Config.mOffsets[0] = String(custom_offset0.getValue()).toInt();
-    g_Config.mOffsets[1] = String(custom_offset1.getValue()).toInt();
-    g_Config.mOffsets[2] = String(custom_offset2.getValue()).toInt();
-    g_Config.mOffsets[3] = String(custom_offset3.getValue()).toInt();
-    g_Config.mOffsets[4] = String(custom_offset4.getValue()).toInt();
-    g_Config.mOffsets[5] = String(custom_offset5.getValue()).toInt();
-
-    // Serial.println(g_Config.dump() + "");
-    g_Config.save();
-
-    // 연결된 WiFi 네트워크의 이름과 IP 주소를 표시
-    Serial.print("연결된 네트워크 이름: ");
-    Serial.println(WiFi.SSID());
-    Serial.print("IP 주소: ");
-    Serial.println(WiFi.localIP());
+    WiFi.begin(g_Config.mStrAp.c_str(), g_Config.mStrPassword.c_str());
   }
   else
   {
-    wifiManager.autoConnect();
-    Serial.println("\nConnected to WiFi network!");
-    // digitalWrite(LED1_PIN, HIGH);
+    WiFi.begin();
   }
 
-  udpAddress = g_Config.mTargetIp;
-  udpPort = g_Config.mTargetPort;
-
-  if (udp.listen(udpPort))
+  // receive incoming UDP packets
+  if (udp.listen(localUdpPort))
   {
-    udp.onPacket([](AsyncUDPPacket packet)
+    udp.onPacket([](AsyncUDPPacket _packet)
                  {
-                   // Handle incoming packets here
-                 });
+        String _strRes = processCommand((const char *)_packet.data());
+        //response to the client
+        _packet.printf("#RES__%s",_strRes.c_str()); });
   }
 
-  Serial.printf("target address : %s:%d\n", udpAddress.c_str(), udpPort);
-
-  digitalWrite(ledPins[statusLedPin], HIGH);
-  delay(500);
-  digitalWrite(ledPins[statusLedPin], LOW);
-
-  //imu setup
+  // imu setup
   initDmp(g_Config.mOffsets); // start dmp
-  
+
   digitalWrite(ledPins[statusLedPin], HIGH);
 
   Serial.println("imu init done");
 
   runner.init();
+  
   runner.addTask(task_Cmd);
   runner.addTask(task_Packet);
 
@@ -519,15 +447,15 @@ void loop()
 {
   if (getDmpReady())
   {
-    if (getAccYpr(imudata))
+    // if (getAccYpr(imudata))
     // if(getAccel(imudata))
-    // if(getQuaternion( &(imudata[6])) )
+    if(getQuaternion( &(imudata[6])) )
     {
-      if (bVerbose)
+      // if (bVerbose)
       {
-        Serial.printf("ax:%.2f ay:%.2f az:%.2f ", imudata[0], imudata[1], imudata[2]);
-        Serial.printf("yaw:%.2f pitch:%.2f roll:%.2f ", imudata[3], imudata[4], imudata[5]);
-        Serial.printf("qw:%.2f qx:%.2f qy:%.2f qz:%.2f\n", imudata[6], imudata[7], imudata[8], imudata[9]);
+        // Serial.printf("ax:%.2f ay:%.2f az:%.2f ", imudata[0], imudata[1], imudata[2]);
+        // Serial.printf("yaw:%.2f pitch:%.2f roll:%.2f ", imudata[3], imudata[4], imudata[5]);
+        // Serial.printf("qw:%.2f qx:%.2f qy:%.2f qz:%.2f\n", imudata[6], imudata[7], imudata[8], imudata[9]);
       }
     }
   }

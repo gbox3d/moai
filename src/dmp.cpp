@@ -225,9 +225,16 @@ bool getAccYpr(float *pData)
         pData[0] = aaReal.x;
         pData[1] = aaReal.y;
         pData[2] = aaReal.z;
+        
         pData[3] = ypr[0] * 180 / M_PI;
         pData[4] = ypr[1] * 180 / M_PI;
         pData[5] = ypr[2] * 180 / M_PI;
+        
+        pData[6] = q.w;
+        pData[7] = q.x;
+        pData[8] = q.y;
+        pData[9] = q.z;
+
         return true;
     }
     return false;

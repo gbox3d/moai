@@ -8,6 +8,8 @@ class CCongifData
     Preferences preferences;
 
 public:
+    String mStrAp;
+    String mStrPassword;
 
     int mDeviceNumber;
     String mTargetIp;
@@ -17,6 +19,8 @@ public:
     bool save()
     {
         preferences.begin("config", false);
+        preferences.putString("mStrAp", mStrAp);
+        preferences.putString("mStrPassword", mStrPassword);
         preferences.putInt("mDeviceNumber", mDeviceNumber);
         preferences.putString("mTargetIp", mTargetIp);
         preferences.putInt("mTargetPort", mTargetPort);
@@ -33,6 +37,9 @@ public:
     bool load()
     {
         preferences.begin("config", true);
+
+        mStrAp = preferences.getString("mStrAp", "");
+        mStrPassword = preferences.getString("mStrPassword", "");
 
         mTargetIp = preferences.getString("mTargetIp", "");
         mTargetPort = preferences.getInt("mTargetPort", 0);
@@ -56,7 +63,9 @@ public:
     }
     String dump()
     {
-        return String("mTargetIp: ") + mTargetIp + "\n" +
+        return String("mStrAp: ") + mStrAp + "\n" +
+               String("mStrPassword: ") + mStrPassword + "\n" +
+               String("mTargetIp: ") + mTargetIp + "\n" +
                String("mTargetPort: ") + String(mTargetPort) + "\n" +
                String("mDeviceNumber: ") + String(mDeviceNumber) + "\n" +
                String("mOffsets: ") + "\n" +
@@ -66,15 +75,6 @@ public:
                String("offset3: ") + String(mOffsets[3]) + "\n" +
                String("offset4: ") + String(mOffsets[4]) + "\n" +
                String("offset5: ") + String(mOffsets[5]) + "\n";
-
-        // Serial.println("mTargetIp: " + mTargetIp);
-        // Serial.println("mTargetPort: " + String(mTargetPort));
-        // Serial.println("mDeviceNumber: " + String(mDeviceNumber));
-        // Serial.println("mOffsets: ");
-        // for (int i = 0; i < 6; i++)
-        // {
-        //     Serial.println((String("offset") + i + ": ").c_str() + String(mOffsets[i]));
-        // }
     }
 };
 
