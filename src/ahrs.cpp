@@ -24,9 +24,35 @@ namespace arhs
         microsPrevious = micros();
     }
 
+    void setup(float gyOffsetX, float gyOffsetY, float gyOffsetZ)
+    {   
+        // initialize variables to pace updates to correct rate
+        microsPerReading = 1000000 / 25; // 40000 microseconds/reading = 25Hz
+        microsPrevious = micros();
+
+        Wire.begin();
+        // mpu6050.begin();
+        filter.begin(25); // 25Hz sample rate
+        mpu6050.setGyroOffsets(gyOffsetX, gyOffsetY, gyOffsetZ);
+
+        mpu6050.begin(); // 왜 2 번?
+
+    }   
+
+
     void stop()
     {
         Wire.end();
+    }
+
+    void resetFilter() {
+
+        mpu6050.begin();
+        // mpu6050.begin();
+        filter.begin(25); // 25Hz sample rate
+        // initialize variables to pace updates to correct rate
+        microsPerReading = 1000000 / 25; // 40000 microseconds/reading = 25Hz
+        microsPrevious = micros();
     }
 
     void calibration() {

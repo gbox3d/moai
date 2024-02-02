@@ -1,12 +1,11 @@
 #include <Arduino.h>
 #include <TaskScheduler.h>
-#include <WiFiManager.h> // WiFiManager 라이브러리를 포함
+// #include <WiFiManager.h> // WiFiManager 라이브러리를 포함
+#include <WiFi.h>
 #include <AsyncUDP.h>
 
 #include <tonkey.hpp>
-
 #include "config.hpp"
-
 #include "moai_imu.hpp"
 
 #if defined(LOLIN_D32)
@@ -34,7 +33,7 @@ const int statusLedPin = 0;
 const int motorLedPin = 1;
 const int batteryAnalogPin = 0;
 
-String strTitleMsg = "it is MOAI-C3 (ARHS) revision 3";
+String strTitleMsg = "it is MOAI-C3 (ARHS) revision 6";
 
 String strHelpMsg = "command list\n\
 help : show this message\n\
@@ -50,15 +49,15 @@ reboot : reboot esp32\n\
 print : print config\n\
 ";
 
+String strBroadCastMsg;
+unsigned int localUdpPort = 7204;
+
 CCongifData g_Config;
 tonkey g_MainParser;
 Scheduler runner;
 
 bool bVerbose = false;
-
-// long total_Elapsed = 0;
-// long average_Elapsed = 0;
-// long average_Count = 0;
+bool bImuInit = false;
 
 //--------udp network code
 AsyncUDP udp;
@@ -98,6 +97,13 @@ struct S_Udp_IMU_RawData_Packet
 
 static S_Udp_IMU_RawData_Packet packet;
 static float imudata[10];
+
+Task task_udpBroadCast(
+    5000, TASK_FOREVER, []()
+    {
+      udp.broadcastTo(strBroadCastMsg.c_str(), localUdpPort);
+      // Serial.println("udp broadcast");
+    });
 
 String processCommand(String _strLine)
 {
@@ -243,6 +249,29 @@ String processCommand(String _strLine)
       {
         // initDmp(g_Config.mOffsets);
         arhs::setup();
+        
+        arhs::setGyroOffsets(
+            g_Config.mOffsets[3] / 100.0,
+            g_Config.mOffsets[4] / 100.0,
+            g_Config.mOffsets[5] / 100.0);
+
+        arhs::resetFilter();
+
+        
+        bImuInit = true;
+        Serial.printf("imu offsets : %d %d %d %d %d %d\n",
+                g_Config.mOffsets[0],
+                g_Config.mOffsets[1],
+                g_Config.mOffsets[2],
+                g_Config.mOffsets[3],
+                g_Config.mOffsets[4],
+                g_Config.mOffsets[5]);
+        Serial.println("imu setup done");
+
+        // arhs::setup();
+
+        
+
       }
       else if (_strCmd == "stop")
       {
@@ -267,8 +296,14 @@ String processCommand(String _strLine)
 
         // int16_t *pOffset = GetActiveOffset();
         // memcpy(g_Config.mOffsets, pOffset, sizeof(int16_t) * 6);
-
         g_Config.save();
+      }
+      else if (_strCmd == "setOffset")
+      {
+        arhs::setGyroOffsets(
+            g_Config.mOffsets[3] / 100.0,
+            g_Config.mOffsets[4] / 100.0,
+            g_Config.mOffsets[5] / 100.0);
       }
       else if (_strCmd == "verbose")
       {
@@ -288,10 +323,132 @@ String processCommand(String _strLine)
         _result = "FAIL";
       }
     }
+
+    else if (cmd == "wifi")
+    {
+      cmd = g_MainParser.getToken(1);
+      if ((cmd == "scan"))
+      {
+        int n = WiFi.scanNetworks();
+        Serial.println("scan done");
+        if (n == 0)
+        {
+          Serial.println("no networks found");
+          _result = "no networks found\nOK";
+        }
+        else
+        {
+          // Serial.print(n);
+          // Serial.println(" networks found");
+          // for (int i = 0; i < n; ++i)
+          // {
+          //   // Print SSID and RSSI for each network found
+          //   Serial.print(i + 1);
+          //   Serial.print(": ");
+          //   Serial.print(WiFi.SSID(i));
+          //   Serial.print(" (");
+          //   Serial.print(WiFi.RSSI(i));
+          //   Serial.print(")");
+          //   Serial.println((WiFi.encryptionType(i) == WIFI_AUTH_OPEN) ? " " : "*");
+          //   delay(10);
+          // }
+          _result = String(n) + " networks found\nOK";
+
+          for (int i = 0; i < n; i++)
+          {
+            _result += String(i + 1) + ": " + WiFi.SSID(i) + " (" + String(WiFi.RSSI(i)) + ") " + ((WiFi.encryptionType(i) == WIFI_AUTH_OPEN) ? " " : "*") + "\n";
+          }
+        }
+        // Serial.println("");
+      }
+      // else if ((cmd == "setup_ap") && (g_MainParser.getTokenCount() > 2))
+      // {
+      //   String _strAp = g_MainParser.getToken(2);
+      //   String _strPassword = g_MainParser.getToken(3);
+
+      //   WiFi.mode(WIFI_AP);
+      //   WiFi.softAP(_strAp.c_str(), _strPassword.c_str());
+      // }
+      else if ((cmd == "setup_sta") && (g_MainParser.getTokenCount() > 2))
+      {
+        String _strAp = g_MainParser.getToken(2);
+        String _strPassword = g_MainParser.getToken(3);
+
+        g_Config.mStrAp = _strAp;
+        g_Config.mStrPassword = _strPassword;
+
+        WiFi.mode(WIFI_STA);
+        WiFi.begin(_strAp.c_str(), _strPassword.c_str());
+      }
+      else if ((cmd == "connect") && (g_MainParser.getTokenCount() > 2))
+      {
+        g_Config.mStrAp = g_MainParser.getToken(2);
+        g_Config.mStrPassword = g_MainParser.getToken(3);
+      }
+      else if ((cmd == "disconnect"))
+      {
+        WiFi.disconnect();
+      }
+      else if ((cmd == "status"))
+      {
+        _result = String("WiFi status: " + WiFi.status()) + "\nOK";
+        // Serial.print("WiFi status: ");
+        // Serial.println(WiFi.status());
+      }
+      else if ((cmd == "ip"))
+      {
+        // Serial.print("IP address: ");
+        // Serial.println(WiFi.localIP());
+        _result = String("IP address: " + WiFi.localIP().toString()) + "\nOK";
+      }
+      else if ((cmd == "mac"))
+      {
+        // Serial.print("MAC address: ");
+        // Serial.println(WiFi.macAddress());
+        _result = String("MAC address: " + WiFi.macAddress()) + "\nOK";
+      }
+      else if ((cmd == "rssi"))
+      {
+        // Serial.print("RSSI: ");
+        // Serial.println(WiFi.RSSI());
+        _result = String("RSSI: " + String(WiFi.RSSI())) + "\nOK";
+      }
+      else if ((cmd == "gateway"))
+      {
+        // Serial.print("Gateway: ");
+        // Serial.println(WiFi.gatewayIP());
+        _result = String("Gateway: " + WiFi.gatewayIP().toString()) + "\nOK";
+      }
+      else if ((cmd == "dns"))
+      {
+        // Serial.print("DNS: ");
+        // Serial.println(WiFi.dnsIP());
+        _result = String("DNS: " + WiFi.dnsIP().toString()) + "\nOK";
+      }
+      else if (cmd == "start_broadcast")
+      {
+        task_udpBroadCast.enable();
+      }
+      else if (cmd == "stop_broadcast")
+      {
+        task_udpBroadCast.disable();
+      }
+      else if (cmd == "send")
+      {
+        IPAddress serverIP;
+        serverIP.fromString(g_MainParser.getToken(1));
+        unsigned int port = g_MainParser.getToken(2).toInt();
+
+        String msg = g_MainParser.getToken(3);
+
+        udp.writeTo((const uint8_t *)msg.c_str(), msg.length(), serverIP, port);
+      }
+    }
     else
     {
       _result = "FAIL";
     }
+
     return _result;
   }
   else
@@ -349,26 +506,49 @@ void WiFiEvent(WiFiEvent_t event)
 {
   switch (event)
   {
-  case SYSTEM_EVENT_STA_DISCONNECTED:
-    digitalWrite(ledPins[statusLedPin], LOW); // WiFi 연결 해제 시 LED 끄기
-    break;
   case SYSTEM_EVENT_STA_CONNECTED:
+    Serial.println("Connected to WiFi");
+    digitalWrite(ledPins[statusLedPin], HIGH);
+
+    break;
+  case SYSTEM_EVENT_STA_DISCONNECTED:
+    Serial.println("Disconnected from WiFi");
+    digitalWrite(ledPins[statusLedPin], LOW);
+    break;
   case SYSTEM_EVENT_STA_GOT_IP:
-    digitalWrite(ledPins[statusLedPin], HIGH); // WiFi 연결 시 LED 켜기
+    Serial.print("Got IP: ");
+    Serial.println(WiFi.localIP());
     break;
   default:
     break;
   }
 }
 
-void configModeCallback(WiFiManager *myWiFiManager)
-{
-  Serial.println("#AP mode started. Please enter config.");
-  digitalWrite(ledPins[statusLedPin], HIGH);
-}
+// bool apModeTriggered = false;
+
+// void configModeCallback(WiFiManager *myWiFiManager)
+// {
+//   Serial.println("#AP mode started. Please enter config.");
+//   digitalWrite(ledPins[statusLedPin], HIGH);
+//   apModeTriggered = true;
+// }
+
+
 
 void setup()
 {
+  String chipId = String((uint32_t)ESP.getEfuseMac(), HEX);
+  chipId.toUpperCase(); // 대문자로 변환
+
+  strBroadCastMsg = "#BC__BSQ-" + chipId;
+
+  Serial.begin(115200);
+
+  g_Config.load();
+
+  udpAddress = g_Config.mTargetIp;
+  udpPort = g_Config.mTargetPort;
+
   // io setup
   for (int i = 0; i < sizeof(ledPins) / sizeof(ledPins[0]); i++)
   {
@@ -386,144 +566,61 @@ void setup()
     pinMode(analogPins[i], INPUT);
   }
 
-  Serial.begin(115200);
+  // connect to wifi
+  WiFi.onEvent(WiFiEvent);
+  WiFi.mode(WIFI_STA);
 
-  g_Config.load();
-
-  WiFiManager wifiManager;
-
-  if (digitalRead(buttonPins[setupButtonPin]) == LOW && digitalRead(buttonPins[triggerButtonPin]) == LOW)
+  if (g_Config.mStrAp.length() > 0)
   {
-
-    g_Config.clear();
-
-    // ap mode enter signal
-    for (int i = 0; i < 3; i++)
-    {
-      digitalWrite(ledPins[motorLedPin], HIGH);
-      delay(100);
-      digitalWrite(ledPins[motorLedPin], LOW);
-      delay(100);
-    }
-
-    // 사용자 정의 매개변수 (장치 번호를 위한)
-    WiFiManagerParameter custom_device_number("device_number", "장치 번호", String(g_Config.mDeviceNumber).c_str(), 10);
-    WiFiManagerParameter custom_target_ip("target_ip", "타겟 IP", g_Config.mTargetIp.c_str(), 16);
-    WiFiManagerParameter custom_target_port("target_port", "타겟 포트", String(g_Config.mTargetPort).c_str(), 6);
-
-    // WiFiManagerParameter custom_offset0("offset0", "Gyro X offset", String(g_Config.mOffsets[0]).c_str(), 6);
-    // WiFiManagerParameter custom_offset1("offset1", "Gyro Y offset", String(g_Config.mOffsets[1]).c_str(), 6);
-    // WiFiManagerParameter custom_offset2("offset2", "Gyro Z offset", String(g_Config.mOffsets[2]).c_str(), 6);
-
-    WiFiManagerParameter custom_offset3("offset3", "Accel X offset", String(g_Config.mOffsets[3]).c_str(), 6);
-    WiFiManagerParameter custom_offset4("offset4", "Accel Y offset", String(g_Config.mOffsets[4]).c_str(), 6);
-    WiFiManagerParameter custom_offset5("offset5", "Accel Z offset", String(g_Config.mOffsets[5]).c_str(), 6);
-
-    // 'Reset Settings'라는 이름의 추가 메뉴 항목을 만들어서 WiFi 설정을 리셋할 수 있게 함
-    // WiFiManager에 장치 번호 매개변수 추가
-    wifiManager.addParameter(&custom_device_number);
-    wifiManager.addParameter(&custom_target_ip);
-    wifiManager.addParameter(&custom_target_port);
-
-    // wifiManager.addParameter(&custom_offset0);
-    // wifiManager.addParameter(&custom_offset1);
-    // wifiManager.addParameter(&custom_offset2);
-    wifiManager.addParameter(&custom_offset3);
-    wifiManager.addParameter(&custom_offset4);
-    wifiManager.addParameter(&custom_offset5);
-
-    // WiFiManager에 AP 모드 콜백 설정
-    wifiManager.setAPCallback(configModeCallback);
-    Serial.println("Resetting WiFi settings...");
-    wifiManager.resetSettings();
-
-    // ESP32 칩셋 ID를 얻어서 문자열로 변환
-    String chipId = String((uint32_t)ESP.getEfuseMac(), HEX);
-    chipId.toUpperCase(); // 대문자로 변환
-
-    // AP 모드의 이름을 "BSQ-"와 칩셋 ID의 조합으로 설정
-    String ssid = "BSQ-" + chipId;
-    const char *ssid_ptr = ssid.c_str(); // const char* 타입으로 변환
-
-    // 여기서 "AutoConnectAP"는 ESP32가 AP 모드로 전환했을 때 나타나는 네트워크의 이름입니다.
-    // "password"는 AP 모드의 비밀번호입니다 (최소 8자 필요).
-    // 이 부분은 필요에 따라 수정하면 됩니다.
-    wifiManager.autoConnect(ssid_ptr, "123456789");
-
-    g_Config.mDeviceNumber = String(custom_device_number.getValue()).toInt();
-    g_Config.mTargetIp = custom_target_ip.getValue();
-    g_Config.mTargetPort = String(custom_target_port.getValue()).toInt();
-
-    // g_Config.mOffsets[0] = String(custom_offset0.getValue()).toInt();
-    // g_Config.mOffsets[1] = String(custom_offset1.getValue()).toInt();
-    // g_Config.mOffsets[2] = String(custom_offset2.getValue()).toInt();
-    g_Config.mOffsets[3] = String(custom_offset3.getValue()).toInt();
-    g_Config.mOffsets[4] = String(custom_offset4.getValue()).toInt();
-    g_Config.mOffsets[5] = String(custom_offset5.getValue()).toInt();
-
-    // Serial.println(g_Config.dump() + "");
-    g_Config.save();
-
-    // 연결된 WiFi 네트워크의 이름과 IP 주소를 표시
-    Serial.print("연결된 네트워크 이름: ");
-    Serial.println(WiFi.SSID());
-    Serial.print("IP 주소: ");
-    Serial.println(WiFi.localIP());
+    WiFi.begin(g_Config.mStrAp.c_str(), g_Config.mStrPassword.c_str());
   }
   else
   {
-    // station mode
-    
-    digitalWrite(ledPins[statusLedPin], HIGH);
-    delay(100);
-    digitalWrite(ledPins[statusLedPin], LOW);
-    delay(100);
-
-    wifiManager.autoConnect();
-    Serial.println("\nConnected to WiFi network!");
+    WiFi.begin();
   }
 
-  udpAddress = g_Config.mTargetIp;
-  udpPort = g_Config.mTargetPort;
-
-  if (udp.listen(udpPort))
+  // receive incoming UDP packets
+  if (udp.listen(localUdpPort))
   {
-    udp.onPacket([](AsyncUDPPacket packet)
+    udp.onPacket([](AsyncUDPPacket _packet)
                  {
-                   // Handle incoming packets here
-                 });
+        String _strRes = processCommand((const char *)_packet.data());
+        //response to the client
+        _packet.printf("#RES__%s",_strRes.c_str()); });
   }
 
-  Serial.printf("target address : %s:%d\n", udpAddress.c_str(), udpPort);
-
-  digitalWrite(ledPins[motorLedPin], HIGH);
-  delay(250);
-  digitalWrite(ledPins[motorLedPin], LOW);
-  delay(50);
-
-  // imu setup
-  arhs::setup();
-  arhs::setGyroOffsets(
+  //imu setup
+  arhs::setup(
       g_Config.mOffsets[3] / 100.0,
       g_Config.mOffsets[4] / 100.0,
       g_Config.mOffsets[5] / 100.0);
 
-  digitalWrite(ledPins[statusLedPin], HIGH);
+  // arhs::setup(
+  //     g_Config.mOffsets[3] / 100.0,
+  //     g_Config.mOffsets[4] / 100.0,
+  //     g_Config.mOffsets[5] / 100.0);
 
-  // delay(100);
-  Serial.println("imu init done");
+  bImuInit = true;
+  Serial.printf("imu setup done : %d %d %d\n",
+                g_Config.mOffsets[3],
+                g_Config.mOffsets[4],
+                g_Config.mOffsets[5]);
 
+  
   runner.init();
+
   runner.addTask(task_Cmd);
   runner.addTask(task_Packet);
+  runner.addTask(task_udpBroadCast);
 
   task_Cmd.enable();
   task_Packet.enable();
+  task_udpBroadCast.enable();
 
-  Serial.println(strTitleMsg);
+  // Serial.println(strTitleMsg);
 }
 
-void loop()
+void _updateImu()
 {
   if (arhs::updateXYZ(imudata))
   {
@@ -532,7 +629,16 @@ void loop()
       Serial.printf("yaw:%.2f pitch:%.2f roll:%.2f \n", imudata[3], imudata[4], imudata[5]);
     }
   }
+}
 
+void loop()
+{
+  if (bImuInit)
+  {
+    _updateImu();
+  }
+
+  //trigger button process
   {
     static int btnTrigerStatus = 0;
     static unsigned long btnTrigerTime = 0;
@@ -556,7 +662,7 @@ void loop()
       }
       break;
     case 2: // wait cool time
-      if (millis() - btnTrigerTime > 150)
+      if (millis() - btnTrigerTime > 300)
       {
         btnTrigerStatus = 0;
         digitalWrite(ledPins[motorLedPin], LOW);

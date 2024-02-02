@@ -4,6 +4,7 @@
 namespace arhs
 {
     void setup();
+    void setup(float gyOffsetX, float gyOffsetY, float gyOffsetZ);
     // void loop(float *pData);
     bool updateXYZ(float *pData);
     bool updateXZY(float *pData);
