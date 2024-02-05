@@ -112,5 +112,32 @@ imu saveOffset - 현재 IMU 오프셋 값을 저장합니다.
 imu verbose - 자세한 IMU 데이터 출력을 토글합니다.  
 imu status - 현재 IMU 데이터를 보여줍니다.  
 
+**wifi**
+
+wifi 관련 명령어를 처리합니다.  
+
+scan - 주변 wifi를 검색합니다.  
+
+connect - ssid , password 를 입력하여 wifi에 연결합니다.  
+ex> wifi connect ssid password  
+
+disconnect - station 모드에서 연결을 해제합니다.  
+status - 현재 wifi 상태를 보여줍니다.  
+ip - 현재 ip 주소를 보여줍니다.  
+mac - 현재 mac 주소를 보여줍니다.  
+rssi - 현재 rssi 값을 보여줍니다.  
+dns - 현재 dns 주소를 보여줍니다.  
+
+start_broadcast - udp broadcast 를 시작합니다. 7204 포트로 데이터를 전송합니다.    
+stop_broadcast - udp broadcast 를 중지합니다.  
+
+send - udp broadcast 를 통해 데이터를 전송합니다.  
+ex> wifi send server_ip server_port data
+
+
+
+
+
+
 
 

@@ -315,7 +315,7 @@ String processCommand(String _strLine)
         }
         // Serial.println("");
       }
-      else if ((cmd == "setup_sta") && (g_MainParser.getTokenCount() > 2))
+      else if ((cmd == "connect") && (g_MainParser.getTokenCount() > 2))
       {
         String _strAp = g_MainParser.getToken(2);
         String _strPassword = g_MainParser.getToken(3);
@@ -326,11 +326,11 @@ String processCommand(String _strLine)
         WiFi.mode(WIFI_STA);
         WiFi.begin(_strAp.c_str(), _strPassword.c_str());
       }
-      else if ((cmd == "connect") && (g_MainParser.getTokenCount() > 2))
-      {
-        g_Config.mStrAp = g_MainParser.getToken(2);
-        g_Config.mStrPassword = g_MainParser.getToken(3);
-      }
+      // else if ((cmd == "connect") && (g_MainParser.getTokenCount() > 2))
+      // {
+      //   g_Config.mStrAp = g_MainParser.getToken(2);
+      //   g_Config.mStrPassword = g_MainParser.getToken(3);
+      // }
       else if ((cmd == "disconnect"))
       {
         WiFi.disconnect();
