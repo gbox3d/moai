@@ -70,18 +70,20 @@ led pwm 1 128 - 두 번째 LED의 밝기를 PWM으로 조절합니다 (0-255 범
 
 **config**
 
+devid, target, triggerdelay  
+
 설명: 구성 설정을 보여주거나 수정합니다.  
-사용 예: config mNumber 123 - 구성 설정 mNumber를 123으로 설정합니다.
-config target 192.168.4.48 9250
+사용 예: 
+config devid 123  
+config target 192.168.4.48 9250  
+config triggerdelay 100
 
 **save**
 
-설명: 현재 구성을 저장합니다.  
-
-
+설명: 현재 구성을 저장합니다.   
 **load**
 
-설명: 저장된 구성을 불러옵니다.
+설명: 저장된 구성을 불러옵니다.  
 
 **clear**
 

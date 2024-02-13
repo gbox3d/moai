@@ -33,20 +33,16 @@ const int statusLedPin = 0;
 const int motorLedPin = 1;
 const int batteryAnalogPin = 0;
 
-String strTitleMsg = "it is MOAI-C3 (DMP) revision 1";
+String strTitleMsg = "it is MOAI-C3 (DMP) revision 2";
 
 String strHelpMsg = "command list\n\
 help : show this message\n\
-led on|off|toggle|pwm <index> <value> : control led\n\
-button <index> : read button\n\
-analog <index> : read analog\n\
-config mNumber <value> : set mNumber\n\
-config mMsg <value> : set mMsg\n\
 save : save config\n\
 load : load config\n\
 clear : clear config\n\
 reboot : reboot esp32\n\
 print : print config\n\
+config devid <number>|target <ip> <port> | trggerdelay <number> : config setting\n\
 imu start|stop|zero|verbose|status : imu control\n\
 wifi scan|setup_sta <ssid> <password>|connect <ssid> <password>| \n\
 wifi disconnect|status|ip|mac|rssi|gateway|dns|start_broadcast|stop_broadcast|send <ip> <port> <msg> : wifi control\n\
@@ -213,6 +209,17 @@ String processCommand(String _strLine)
         {
           g_Config.mTargetIp = g_MainParser.getToken(2);
           g_Config.mTargetPort = g_MainParser.getToken(3).toInt();
+        }
+        else
+        {
+          _result = "FAIL";
+        }
+      }
+      else if (_strCmd == "triggerdelay")
+      {
+        if (g_MainParser.getTokenCount() > 2)
+        {
+          g_Config.mTriggerDelay = g_MainParser.getToken(2).toInt();
         }
         else
         {
@@ -567,23 +574,24 @@ void _updateTrigger() // trigger button process
   switch (btnTrigerStatus)
   {
   case 0:
-    if (digitalRead(buttonPins[triggerButtonPin]) == LOW && digitalRead(buttonPins[setupButtonPin]) == HIGH)
+    if (digitalRead(buttonPins[triggerButtonPin]) == HIGH && digitalRead(buttonPins[setupButtonPin]) == HIGH)
     {
       btnTrigerStatus = 1;
       btnTrigerTime = millis();
-      packet.fire_count++;
-      Serial.println("fire count : " + String(packet.fire_count));
+
       digitalWrite(ledPins[motorLedPin], HIGH);
     }
     break;
   case 1:
-    if (digitalRead(buttonPins[triggerButtonPin]) == HIGH)
+    if (digitalRead(buttonPins[triggerButtonPin]) == LOW)
     {
+      packet.fire_count++;
       btnTrigerStatus = 2;
+      Serial.println("fire count : " + String(packet.fire_count));
     }
     break;
   case 2: // wait cool time
-    if (millis() - btnTrigerTime > 300)
+    if (millis() - btnTrigerTime > g_Config.mTriggerDelay)
     {
       btnTrigerStatus = 0;
       digitalWrite(ledPins[motorLedPin], LOW);
