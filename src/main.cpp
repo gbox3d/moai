@@ -33,7 +33,7 @@ const int statusLedPin = 0;
 const int motorLedPin = 1;
 const int batteryAnalogPin = 0;
 
-String strTitleMsg = "it is MOAI-C3 (DMP) revision 2";
+String strTitleMsg = "it is MOAI-C3 (DMP) revision 3";
 
 String strHelpMsg = "command list\n\
 help : show this message\n\
@@ -574,7 +574,7 @@ void _updateTrigger() // trigger button process
   switch (btnTrigerStatus)
   {
   case 0:
-    if (digitalRead(buttonPins[triggerButtonPin]) == HIGH && digitalRead(buttonPins[setupButtonPin]) == HIGH)
+    if (digitalRead(buttonPins[triggerButtonPin]) == HIGH )
     {
       btnTrigerStatus = 1;
       btnTrigerTime = millis();
@@ -605,7 +605,12 @@ void _updateTrigger() // trigger button process
 void loop()
 {
   _updateImu();
-  _updateTrigger();
+
+  if(digitalRead(buttonPins[setupButtonPin]) == HIGH)
+  {
+    _updateTrigger();
+  }
+  
 
   runner.execute();
 }
