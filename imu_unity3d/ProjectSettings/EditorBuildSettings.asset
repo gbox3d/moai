@@ -4,5 +4,9 @@
 EditorBuildSettings:
   m_ObjectHideFlags: 0
   serializedVersion: 2
-  m_Scenes: []
+  m_Scenes:
+  - enabled: 1
+    path: Assets/Scenes/mp6050_packet_monitor.unity
+    guid: 0fcc28db878c043f69e0111089a4e9ab
   m_configObjects: {}
+  m_UseUCBPForAssetBundles: 0
