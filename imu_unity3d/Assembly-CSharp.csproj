@@ -65,6 +65,7 @@
     <Analyzer Include="/Volumes/data/unity/editor/2023.2.3f1/Unity.app/Contents/Tools/Unity.SourceGenerators/Unity.UIToolkit.SourceGenerator.dll" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="Assets/script/packetMonitor.cs" />
     <Compile Include="Assets/script/imuReciever_Quaternion.cs" />
     <Compile Include="Assets/script/packet.cs" />
   </ItemGroup>

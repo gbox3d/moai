@@ -49,7 +49,7 @@ public class imuReciever_Quaternion : MonoBehaviour
             //틀어진 값을 보정하기 위해 현재 imu의 rotation과 target rotation의 차이를 구한다.
             Quaternion target = imuObject_Corrected.transform.rotation;
             // target - current
-            mDeltaRotation = target * Quaternion.Inverse(mImuRotation);
+            mDeltaRotation = target * Quaternion.Inverse(mImuRotation); //target - mImuRotation
             mDeltaRotation.Normalize();
         });
 
@@ -78,6 +78,7 @@ public class imuReciever_Quaternion : MonoBehaviour
 
                 // Debug.Log("qW : " + qW + " qX : " + qX + " qY : " + qY + " qZ : " + qZ);
 
+                //쿼터니온을 만든다.
                 mImuRotation = new Quaternion(qW, qX, qY, qZ); //imu sensor rotation
                 
                 imuObject_Ypr.transform.rotation =  mDeltaRotation * mImuRotation; //값을 보정한다.
