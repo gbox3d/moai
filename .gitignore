@@ -4,3 +4,5 @@
 .vscode/launch.json
 .vscode/ipch
 imu_unity3d/
+
+.DS_Store

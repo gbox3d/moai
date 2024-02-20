@@ -150,3 +150,10 @@ ex> wifi send server_ip server_port data
 
 
 
+
+## branch
+
+- main : project home  
+- mp6050_arsh : use arsh library for mpu6050  
+- mp6050_dmp : use i2cdevlib for mpu6050  
+
