@@ -33,7 +33,7 @@ const int statusLedPin = 0;
 const int motorLedPin = 1;
 const int batteryAnalogPin = 0;
 
-String strTitleMsg = "it is MOAI-C3 (DMP) revision 3";
+String strTitleMsg = "it is MOAI-C3 (DMP) revision 4";
 
 String strHelpMsg = "command list\n\
 help : show this message\n\
@@ -552,9 +552,9 @@ void _updateImu()
 {
   if (getDmpReady())
   {
-    // if (getAccYpr(imudata))
+    if (getAccYpr(imudata))
     // if(getAccel(imudata))
-    if (getQuaternion(&(imudata[6])))
+    // if (getQuaternion(&(imudata[6])))
     {
       if (bVerbose)
       {
