@@ -18,6 +18,7 @@ const int buttonPins[] = {19, 23};
 const int ledPins[] = {D10, D9};
 const int analogPins[] = {D0, D1};
 const int buttonPins[] = {D8, D2};
+const int batteryPin = A0;
 
 #elif defined(LOLIN_D32_LITE)
 const int ledPins[] = {4, 5};
@@ -33,7 +34,7 @@ const int statusLedPin = 0;
 const int motorLedPin = 1;
 const int batteryAnalogPin = 0;
 
-String strTitleMsg = "it is MOAI-C3 (DMP) revision 4";
+String strTitleMsg = "it is MOAI-C3 (DMP) revision 5";
 
 String strHelpMsg = "command list\n\
 help : show this message\n\
@@ -42,6 +43,7 @@ load : load config\n\
 clear : clear config\n\
 reboot : reboot esp32\n\
 print : print config\n\
+battery : get battery voltage\n\
 config devid <number>|target <ip> <port> | trggerdelay <number> : config setting\n\
 imu start|stop|zero|verbose|status : imu control\n\
 wifi scan|setup_sta <ssid> <password>|connect <ssid> <password>| \n\
@@ -109,10 +111,10 @@ String processCommand(String _strLine)
   _strLine.trim();
   g_MainParser.parse(_strLine);
 
+  String _result = "OK";
+
   if (g_MainParser.getTokenCount() > 0)
   {
-    String _result = "OK";
-
     String cmd = g_MainParser.getToken(0);
 
     if (cmd == "help")
@@ -397,17 +399,33 @@ String processCommand(String _strLine)
         udp.writeTo((const uint8_t *)msg.c_str(), msg.length(), serverIP, port);
       }
     }
+    else if(cmd == "battery") {
+
+      //update battery value
+      uint32_t Vbatt = 0;
+      for (int i = 0; i < 16; i++)
+      {
+        Vbatt = Vbatt + analogReadMilliVolts(batteryPin); // ADC with correction
+      }
+      float Vbattf = 2 * Vbatt / 16 / 1000.0; // attenuation ratio 1/2, mV --> V
+
+      _result = String(Vbattf) + "\nOK";
+      packet.battery = Vbattf;
+
+    }
     else
     {
       _result = "FAIL";
     }
 
-    return _result;
+    // return "#RES_" + _result + "\nOK\n";
   }
   else
   {
-    return "NOK";
+    _result = "NOK";
   }
+
+  return "#RES_" + _result;
 }
 
 Task task_Cmd(
@@ -507,6 +525,9 @@ void setup()
   {
     pinMode(analogPins[i], INPUT);
   }
+
+  // battery setup
+  pinMode(batteryPin, INPUT);
 
   // connect to wifi
   WiFi.onEvent(WiFiEvent);
