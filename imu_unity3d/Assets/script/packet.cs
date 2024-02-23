@@ -147,6 +147,88 @@ public class UDPReceiver : IDisposable
     }
 }
 
+public class UDPCmdReceiver : IDisposable
+{
+    private UdpClient udpClient;
+    // private IPEndPoint endPoint;
+    private bool isReceiving = false;
+    private CancellationTokenSource cancellationTokenSource;
+
+    public UDPCmdReceiver(int port)
+    {
+        udpClient = new UdpClient(port);
+        // endPoint = new IPEndPoint(IPAddress.Any, port);
+        cancellationTokenSource = new CancellationTokenSource();
+    }
+
+    // public async Task<string> ReceivePacketAsync()
+    public async Task<(string receivedData, IPEndPoint remoteEndPoint)> ReceivePacketAsync()
+    {
+        
+        string receivedData = string.Empty;
+        IPEndPoint remoteEndPoint = null;
+        try
+        {
+            
+            isReceiving = true;
+            var result = await udpClient.ReceiveAsync().WithCancellation(cancellationTokenSource.Token);
+            byte[] receivedBytes = result.Buffer;
+            receivedData = Encoding.UTF8.GetString(receivedBytes); // Convert byte[] to string using UTF-8 encoding
+
+            remoteEndPoint = result.RemoteEndPoint; // Get the remote endpoint information
+            // Debug.Log("Received from: " + remoteEndPoint.ToString());
+
+        }
+        catch (OperationCanceledException)
+        {
+            // Handle the exception when the operation is cancelled
+            Debug.LogWarning("UDP Receive operation was cancelled.");
+        }
+        catch (ObjectDisposedException)
+        {
+            // Handle the exception when the UdpClient is disposed
+            Debug.LogWarning("UDP Client has been disposed.");
+        }
+        catch (SocketException e)
+        {
+            // Handle socket exceptions here
+            Debug.LogError($"Socket Exception: {e.Message}");
+        }
+        catch (Exception e)
+        {
+            // Handle other exceptions here
+            Debug.LogError($"An error occurred: {e.Message}");
+        }
+        finally
+        {
+            isReceiving = false;
+        }
+
+        // return receivedBytes;
+        return (receivedData, remoteEndPoint);
+    }
+
+    public void SendPacket(string packet, IPEndPoint endPoint)
+    {
+        byte[] data = Encoding.UTF8.GetBytes(packet);
+        udpClient.Send(data, data.Length, endPoint);
+    }
+    public void CancelReceiving()
+    {
+        cancellationTokenSource.Cancel();
+    }
+
+    public void Dispose()
+    {
+        if (!isReceiving)
+        {
+            udpClient.Close();
+        }
+        cancellationTokenSource.Dispose();
+    }
+
+}
+
 public static class PacketUtilityClass
 {
 

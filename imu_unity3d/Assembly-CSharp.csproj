@@ -67,6 +67,7 @@
   <ItemGroup>
     <Compile Include="Assets/script/packetMonitor.cs" />
     <Compile Include="Assets/script/imuReciever_Quaternion.cs" />
+    <Compile Include="Assets/script/commandSample.cs" />
     <Compile Include="Assets/script/packet.cs" />
   </ItemGroup>
   <ItemGroup>
