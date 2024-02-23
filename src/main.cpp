@@ -409,7 +409,7 @@ String processCommand(String _strLine)
       }
       float Vbattf = 2 * Vbatt / 16 / 1000.0; // attenuation ratio 1/2, mV --> V
 
-      _result = String(Vbattf) + "\nOK";
+      _result = "bat_"+ String(Vbattf) + "\nOK";
       packet.battery = Vbattf;
 
     }
@@ -425,7 +425,7 @@ String processCommand(String _strLine)
     _result = "NOK";
   }
 
-  return "#RES_" + _result;
+  return _result;
 }
 
 Task task_Cmd(
@@ -500,7 +500,7 @@ void setup()
   String chipId = String((uint32_t)ESP.getEfuseMac(), HEX);
   chipId.toUpperCase(); // 대문자로 변환
 
-  strBroadCastMsg = "#BC__BSQ-" + chipId;
+  strBroadCastMsg = "#BC_BSQ-" + chipId;
 
   Serial.begin(115200);
 
@@ -549,7 +549,7 @@ void setup()
                  {
         String _strRes = processCommand((const char *)_packet.data());
         //response to the client
-        _packet.printf("#RES__%s",_strRes.c_str()); });
+        _packet.printf("#RES_%s",_strRes.c_str()); });
   }
 
   // imu setup
