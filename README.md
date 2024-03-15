@@ -129,6 +129,7 @@ scan - 주변 wifi를 검색합니다.
 
 connect - ssid , password 를 입력하여 wifi에 연결합니다.  
 ex> wifi connect ssid password  
+wifi connect redstar0427
 
 disconnect - station 모드에서 연결을 해제합니다.  
 status - 현재 wifi 상태를 보여줍니다.  

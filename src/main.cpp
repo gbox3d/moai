@@ -13,6 +13,7 @@
 const int ledPins[] = {4, 5};
 const int analogPins[] = {34, 35};
 const int buttonPins[] = {19, 23};
+const int batteryPin = 27;
 
 #elif defined(SEED_XIAO_ESP32C3)
 const int ledPins[] = {D10, D9};
@@ -25,6 +26,11 @@ const int ledPins[] = {4, 5};
 const int analogPins[] = {34, 35};
 const int buttonPins[] = {19, 23};
 
+#elif defined(WROVER_KIT)
+const int ledPins[] = {4, 5};
+const int analogPins[] = {34, 35};
+const int buttonPins[] = {18, 23};
+const int batteryPin = 36;
 #endif
 
 const int setupButtonPin = 0;
@@ -32,7 +38,8 @@ const int triggerButtonPin = 1;
 
 const int statusLedPin = 0;
 const int motorLedPin = 1;
-const int batteryAnalogPin = 0;
+
+// const int batteryAnalogPin = 0;
 
 String strTitleMsg = "it is MOAI-C3 (DMP) revision 5";
 
@@ -468,7 +475,7 @@ Task task_Packet(50, TASK_FOREVER, []()
   packet.qy = imudata[8];
   packet.qz = imudata[9];
 
-  packet.battery = analogRead(batteryAnalogPin) / 4096.0 * 3.3 * 2;
+  // packet.battery = analogRead(batteryAnalogPin) / 4096.0 * 3.3 * 2;
 
   sendDataToServer(packet); });
 

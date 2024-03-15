@@ -120,8 +120,13 @@ MPU6050 mpu;
 //#define OUTPUT_TEAPOT
 
 
-
+#if defined(LOLIN_D32)
+#define INTERRUPT_PIN 18
+#elif defined(WROVER_KIT)
+#define INTERRUPT_PIN 19
+#elif defined(SEED_XIAO_ESP32C3)
 #define INTERRUPT_PIN D3
+#endif
 
 
 // #define LED_PIN 13 // (Arduino is 13, Teensy is 11, Teensy++ is 6)
@@ -317,6 +322,7 @@ void initDmp(int16_t *pOffset) {
             Serial.println("wait for interrupt");
             delay(200);
         }
+        Serial.println("interrupt received");
 
         dmpReady = true;
 
