@@ -74,9 +74,13 @@ devid, target, triggerdelay
 
 설명: 구성 설정을 보여주거나 수정합니다.  
 사용 예: 
+
+```shell
 config devid 123  
 config target 192.168.4.48 9250  
 config triggerdelay 100
+```
+
 
 **save**
 
@@ -128,8 +132,12 @@ wifi 관련 명령어를 처리합니다.
 scan - 주변 wifi를 검색합니다.  
 
 connect - ssid , password 를 입력하여 wifi에 연결합니다.  
-ex> wifi connect ssid password  
-wifi connect redstar0427
+ex> wifi connect ssid password 
+
+```shell
+wifi connect redstar0427 ******
+wifi connect redstar_mc0815 ******
+```
 
 disconnect - station 모드에서 연결을 해제합니다.  
 status - 현재 wifi 상태를 보여줍니다.  
@@ -142,13 +150,11 @@ start_broadcast - udp broadcast 를 시작합니다. 7204 포트로 데이터를
 stop_broadcast - udp broadcast 를 중지합니다.  
 
 send - udp broadcast 를 통해 데이터를 전송합니다.  
+
+```shell
 ex> wifi send server_ip server_port data
 
-
-
-
-
-
+```
 
 
 
