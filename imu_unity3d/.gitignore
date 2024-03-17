@@ -6,4 +6,11 @@ Temp/
 Layouts/
 TextMesh Pro/
 DS_Store
+Assembly-CSharp.csproj
+
+UserSettings/
+ProjectSettings/
+Packages/package-lock.json
+
+Assets/TextMesh Pro/
 
