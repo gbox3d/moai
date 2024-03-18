@@ -41,7 +41,7 @@ const int motorLedPin = 1;
 
 // const int batteryAnalogPin = 0;
 
-String strTitleMsg = "it is MOAI-C3 (DMP) revision 5";
+String strTitleMsg = "it is MOAI-C3 (DMP) revision 6";
 
 String strHelpMsg = "command list\n\
 help : show this message\n\
@@ -602,16 +602,18 @@ void _updateTrigger() // trigger button process
   switch (btnTrigerStatus)
   {
   case 0:
-    if (digitalRead(buttonPins[triggerButtonPin]) == HIGH )
+    if (digitalRead(buttonPins[triggerButtonPin]) == LOW )
     {
       btnTrigerStatus = 1;
       btnTrigerTime = millis();
+
+      // Serial.println("fire button pressed");
 
       digitalWrite(ledPins[motorLedPin], HIGH);
     }
     break;
   case 1:
-    if (digitalRead(buttonPins[triggerButtonPin]) == LOW)
+    if (digitalRead(buttonPins[triggerButtonPin]) == HIGH)
     {
       packet.fire_count++;
       btnTrigerStatus = 2;
