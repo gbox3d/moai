@@ -1,17 +1,34 @@
 #ifndef _MOAI_IMU_HPP_
 #define _MOAI_IMU_HPP_
 
-void initDmp(int16_t *pOffset);
 
-void closeDmp();
-bool getDmpReady();
+namespace BNO080_IMU
+{
+    bool begin();
 
-bool getQuaternion(float *pQuaternion);
-bool getYPR(float *pYPR);
-bool getAccel(float *pAccel);
-bool getAccYpr(float *pData);
+    namespace quaternion {
+        // void ready();
+        void setReports(void);
+        // void update();
+        void update(float *imuData);
+    }
 
-int16_t *GetActiveOffset();
-void doZero();
+    namespace linear_acceleration {
+        void setReports(void);
+        void update();
+    }
+
+    namespace trace {
+        void setReports(void);
+        void update();
+    }
+
+    namespace euler {
+        void setReports(void);
+        void update();
+    }
+
+
+}
 
 #endif

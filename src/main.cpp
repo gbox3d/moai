@@ -1,6 +1,5 @@
 #include <Arduino.h>
 #include <TaskScheduler.h>
-// #include <WiFiManager.h> // WiFiManager 라이브러리를 포함
 #include <WiFi.h>
 #include <AsyncUDP.h>
 
@@ -29,7 +28,7 @@ const int buttonPins[] = {19, 23};
 #elif defined(WROVER_KIT)
 const int ledPins[] = {4, 5};
 const int analogPins[] = {34, 35};
-const int buttonPins[] = {18, 23};
+const int buttonPins[] = {23, 25};
 const int batteryPin = 36;
 #endif
 
@@ -41,7 +40,7 @@ const int motorLedPin = 1;
 
 // const int batteryAnalogPin = 0;
 
-String strTitleMsg = "it is MOAI-C3 (DMP) revision 6";
+String strTitleMsg = "it is MOAI BNO08X revision 1";
 
 String strHelpMsg = "command list\n\
 help : show this message\n\
@@ -269,14 +268,14 @@ String processCommand(String _strLine)
       }
       else if (_strCmd == "stop")
       {
-        closeDmp();
+        // closeDmp();
       }
       else if (_strCmd == "zero")
       {
-        doZero();
+        // doZero();
 
-        int16_t *pOffset = GetActiveOffset();
-        memcpy(g_Config.mOffsets, pOffset, sizeof(int16_t) * 6);
+        // int16_t *pOffset = GetActiveOffset();
+        // memcpy(g_Config.mOffsets, pOffset, sizeof(int16_t) * 6);
       }
       else if (_strCmd == "verbose")
       {
@@ -284,23 +283,23 @@ String processCommand(String _strLine)
       }
       else if (_strCmd == "status")
       {
-        int16_t *pOffset = GetActiveOffset();
-        _result = String("ax : ") + String(imudata[0]) + "\n" +
-                  String("ay : ") + String(imudata[1]) + "\n" +
-                  String("az : ") + String(imudata[2]) + "\n" +
-                  String("yaw : ") + String(imudata[3]) + "\n" +
-                  String("pitch : ") + String(imudata[4]) + "\n" +
-                  String("roll : ") + String(imudata[5]) + "\n" +
-                  String("qw : ") + String(imudata[6]) + "\n" +
-                  String("qx : ") + String(imudata[7]) + "\n" +
-                  String("qy : ") + String(imudata[8]) + "\n" +
-                  String("qz : ") + String(imudata[9]) + "\n" +
-                  String("offset0 : ") + String(pOffset[0]) + "\n" +
-                  String("offset1 : ") + String(pOffset[1]) + "\n" +
-                  String("offset2 : ") + String(pOffset[2]) + "\n" +
-                  String("offset3 : ") + String(pOffset[3]) + "\n" +
-                  String("offset4 : ") + String(pOffset[4]) + "\n" +
-                  String("offset5 : ") + String(pOffset[5]) + "\nOK";
+        // int16_t *pOffset = GetActiveOffset();
+        // _result = String("ax : ") + String(imudata[0]) + "\n" +
+        //           String("ay : ") + String(imudata[1]) + "\n" +
+        //           String("az : ") + String(imudata[2]) + "\n" +
+        //           String("yaw : ") + String(imudata[3]) + "\n" +
+        //           String("pitch : ") + String(imudata[4]) + "\n" +
+        //           String("roll : ") + String(imudata[5]) + "\n" +
+        //           String("qw : ") + String(imudata[6]) + "\n" +
+        //           String("qx : ") + String(imudata[7]) + "\n" +
+        //           String("qy : ") + String(imudata[8]) + "\n" +
+        //           String("qz : ") + String(imudata[9]) + "\n" +
+        //           String("offset0 : ") + String(pOffset[0]) + "\n" +
+        //           String("offset1 : ") + String(pOffset[1]) + "\n" +
+        //           String("offset2 : ") + String(pOffset[2]) + "\n" +
+        //           String("offset3 : ") + String(pOffset[3]) + "\n" +
+        //           String("offset4 : ") + String(pOffset[4]) + "\n" +
+        //           String("offset5 : ") + String(pOffset[5]) + "\nOK";
       }
       else
       {
@@ -560,7 +559,27 @@ void setup()
   }
 
   // imu setup
-  initDmp(g_Config.mOffsets); // start dmp
+  while (1)
+  {
+    if (!BNO080_IMU::begin())
+    {
+      Serial.println("BNO080 not detected at default I2C address. Check your jumpers and the hookup guide. Freezing...");
+      // while(1);
+    }
+    else
+    {
+      Serial.println("BNO080 detected.");
+      break;
+    }
+    Serial.println("Retrying...");
+    delay(300);
+  }
+
+  BNO080_IMU::quaternion::setReports();
+
+  // BNO080_IMU::quaternion::setReports();
+  // Serial.println("Reading events");
+  delay(100);
 
   // task setup
   runner.init();
@@ -578,20 +597,22 @@ void setup()
 
 void _updateImu()
 {
-  if (getDmpReady())
-  {
-    if (getAccYpr(imudata))
-    // if(getAccel(imudata))
-    // if (getQuaternion(&(imudata[6])))
-    {
-      if (bVerbose)
-      {
-        // Serial.printf("ax:%.2f ay:%.2f az:%.2f ", imudata[0], imudata[1], imudata[2]);
-        // Serial.printf("yaw:%.2f pitch:%.2f roll:%.2f ", imudata[3], imudata[4], imudata[5]);
-        Serial.printf("qw:%.2f qx:%.2f qy:%.2f qz:%.2f\n", imudata[6], imudata[7], imudata[8], imudata[9]);
-      }
-    }
-  }
+
+  BNO080_IMU::quaternion::update(imudata);
+  // if (getDmpReady())
+  // {
+  //   if (getAccYpr(imudata))
+  //   // if(getAccel(imudata))
+  //   // if (getQuaternion(&(imudata[6])))
+  //   {
+  //     if (bVerbose)
+  //     {
+  //       // Serial.printf("ax:%.2f ay:%.2f az:%.2f ", imudata[0], imudata[1], imudata[2]);
+  //       // Serial.printf("yaw:%.2f pitch:%.2f roll:%.2f ", imudata[3], imudata[4], imudata[5]);
+  //       Serial.printf("qw:%.2f qx:%.2f qy:%.2f qz:%.2f\n", imudata[6], imudata[7], imudata[8], imudata[9]);
+  //     }
+  //   }
+  // }
 }
 
 void _updateTrigger() // trigger button process
