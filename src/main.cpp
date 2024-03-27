@@ -41,7 +41,7 @@ const int motorLedPin = 1;
 
 // const int batteryAnalogPin = 0;
 
-String strTitleMsg = "it is MOAI-C3 (DMP) revision 6";
+String strTitleMsg = "it is MOAI-C3 (DMP) revision 7";
 
 String strHelpMsg = "command list\n\
 help : show this message\n\
@@ -353,9 +353,11 @@ String processCommand(String _strLine)
       }
       else if ((cmd == "status"))
       {
-        _result = String("WiFi status: " + WiFi.status()) + "\nOK";
-        // Serial.print("WiFi status: ");
-        // Serial.println(WiFi.status());
+        static const char *status[] = {"WL_IDLE_STATUS", "WL_NO_SSID_AVAIL", "WL_SCAN_COMPLETED", "WL_CONNECTED", "WL_CONNECT_FAILED", "WL_CONNECTION_LOST", "WL_DISCONNECTED"};
+        //print wifi status string
+        _result = String("status : ") + String(status[WiFi.status()]) + "\nOK";
+
+                // _result = String("status : ") + String(WiFi.status()) + "\nOK";
       }
       else if ((cmd == "ip"))
       {

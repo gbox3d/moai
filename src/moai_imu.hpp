@@ -1,7 +1,7 @@
 #ifndef _MOAI_IMU_HPP_
 #define _MOAI_IMU_HPP_
 
-void initDmp(int16_t *pOffset);
+bool initDmp(int16_t *pOffset);
 
 void closeDmp();
 bool getDmpReady();

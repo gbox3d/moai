@@ -248,7 +248,7 @@ bool getAccYpr(float *pData)
 
 
 
-void initDmp(int16_t *pOffset) {
+bool initDmp(int16_t *pOffset) {
 
 
     // join I2C bus (I2Cdev library doesn't do this automatically)
@@ -275,72 +275,86 @@ void initDmp(int16_t *pOffset) {
 
     // verify connection
     Serial.println(F("Testing device connections..."));
-    Serial.println(mpu.testConnection() ? F("MPU6050 connection successful") : F("MPU6050 connection failed"));
+    //Serial.println(mpu.testConnection() ? F("MPU6050 connection successful") : F("MPU6050 connection failed"));
 
-    // wait for ready
-    // Serial.println(F("\nSend any character to begin DMP programming and demo: "));
-    // while (Serial.available() && Serial.read()); // empty buffer
-    // while (!Serial.available());                 // wait for data
-    // while (Serial.available() && Serial.read()); // empty buffer again
+    if(mpu.testConnection()) {
+        Serial.println(F("MPU6050 connection successful"));
 
-    // load and configure the DMP
-    Serial.println(F("Initializing DMP..."));
-    devStatus = mpu.dmpInitialize();
+        // wait for ready
+        // Serial.println(F("\nSend any character to begin DMP programming and demo: "));
+        // while (Serial.available() && Serial.read()); // empty buffer
+        // while (!Serial.available());                 // wait for data
+        // while (Serial.available() && Serial.read()); // empty buffer again
 
-    // supply your own gyro offsets here, scaled for min sensitivity
-    mpu.setXGyroOffset(pOffset[0]);
-    mpu.setYGyroOffset(pOffset[1]);
-    mpu.setZGyroOffset(pOffset[2]);
-    mpu.setXAccelOffset(pOffset[3]); 
-    mpu.setYAccelOffset(pOffset[4]); 
-    mpu.setZAccelOffset(pOffset[5]); 
+        // load and configure the DMP
+        Serial.println(F("Initializing DMP..."));
+        devStatus = mpu.dmpInitialize();
 
-    // make sure it worked (returns 0 if so)
-    if (devStatus == 0) {
-        
-        // Calibration Time: generate offsets and calibrate our MPU6050
-        mpu.CalibrateAccel(6);
-        mpu.CalibrateGyro(6);
-        mpu.PrintActiveOffsets();
+        // supply your own gyro offsets here, scaled for min sensitivity
+        mpu.setXGyroOffset(pOffset[0]);
+        mpu.setYGyroOffset(pOffset[1]);
+        mpu.setZGyroOffset(pOffset[2]);
+        mpu.setXAccelOffset(pOffset[3]); 
+        mpu.setYAccelOffset(pOffset[4]); 
+        mpu.setZAccelOffset(pOffset[5]); 
 
-        // turn on the DMP, now that it's ready
-        Serial.println(F("Enabling DMP..."));
-        mpu.setDMPEnabled(true);
+        // make sure it worked (returns 0 if so)
+        if (devStatus == 0) {
+            
+            // Calibration Time: generate offsets and calibrate our MPU6050
+            mpu.CalibrateAccel(6);
+            mpu.CalibrateGyro(6);
+            mpu.PrintActiveOffsets();
 
-        // enable Arduino interrupt detection
-        Serial.print(F("Enabling interrupt detection (Arduino external interrupt "));
-        Serial.print(digitalPinToInterrupt(INTERRUPT_PIN));
-        Serial.println(F(")..."));
-        attachInterrupt(digitalPinToInterrupt(INTERRUPT_PIN), dmpDataReady, RISING);
-        mpuIntStatus = mpu.getIntStatus();
+            // turn on the DMP, now that it's ready
+            Serial.println(F("Enabling DMP..."));
+            mpu.setDMPEnabled(true);
 
-        // set our DMP Ready flag so the main loop() function knows it's okay to use it
-        Serial.println(F("DMP ready! Waiting for first interrupt..."));
+            // enable Arduino interrupt detection
+            Serial.print(F("Enabling interrupt detection (Arduino external interrupt "));
+            Serial.print(digitalPinToInterrupt(INTERRUPT_PIN));
+            Serial.println(F(")..."));
+            attachInterrupt(digitalPinToInterrupt(INTERRUPT_PIN), dmpDataReady, RISING);
+            mpuIntStatus = mpu.getIntStatus();
 
-        while (!mpuInterrupt)
-        {
-            Serial.println("wait for interrupt");
-            delay(200);
+            // set our DMP Ready flag so the main loop() function knows it's okay to use it
+            Serial.println(F("DMP ready! Waiting for first interrupt..."));
+
+            while (!mpuInterrupt)
+            {
+                Serial.println("wait for interrupt");
+                delay(200);
+            }
+            Serial.println("interrupt received");
+
+            dmpReady = true;
+
+            // get expected DMP packet size for later comparison
+            packetSize = mpu.dmpGetFIFOPacketSize();
+
+            Serial.print("dmp ready packet size : ");
+            Serial.println(packetSize);
+
+            return true;
+
+        } else {
+            // ERROR!
+            // 1 = initial memory load failed
+            // 2 = DMP configuration updates failed
+            // (if it's going to break, usually the code will be 1)
+            Serial.print(F("DMP Initialization failed (code "));
+            Serial.print(devStatus);
+            Serial.println(F(")"));
+
+            return false;
         }
-        Serial.println("interrupt received");
-
-        dmpReady = true;
-
-        // get expected DMP packet size for later comparison
-        packetSize = mpu.dmpGetFIFOPacketSize();
-
-        Serial.print("dmp ready packet size : ");
-        Serial.println(packetSize);
-
     } else {
-        // ERROR!
-        // 1 = initial memory load failed
-        // 2 = DMP configuration updates failed
-        // (if it's going to break, usually the code will be 1)
-        Serial.print(F("DMP Initialization failed (code "));
-        Serial.print(devStatus);
-        Serial.println(F(")"));
+        Serial.println(F("MPU6050 connection failed"));
+        return false;
     }
+    
+
+    
 
 }
 
