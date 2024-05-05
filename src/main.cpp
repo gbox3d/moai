@@ -41,7 +41,11 @@ const int motorLedPin = 1;
 
 // const int batteryAnalogPin = 0;
 
-String strTitleMsg = "it is MOAI-C3 (DMP) revision 7";
+bool g_bStopSend = false;
+long g_lStartSendTime = 0;
+
+
+String strTitleMsg = "it is MOAI-C3 (DMP) revision 8";
 
 String strHelpMsg = "command list\n\
 help : show this message\n\
@@ -112,6 +116,10 @@ Task task_udpBroadCast(
       udp.broadcastTo(strBroadCastMsg.c_str(), localUdpPort);
       // Serial.println("udp broadcast");
     });
+
+void resume_packet();
+void stop_packet();
+
 
 String processCommand(String _strLine)
 {
@@ -354,10 +362,10 @@ String processCommand(String _strLine)
       else if ((cmd == "status"))
       {
         static const char *status[] = {"WL_IDLE_STATUS", "WL_NO_SSID_AVAIL", "WL_SCAN_COMPLETED", "WL_CONNECTED", "WL_CONNECT_FAILED", "WL_CONNECTION_LOST", "WL_DISCONNECTED"};
-        //print wifi status string
+        // print wifi status string
         _result = String("status : ") + String(status[WiFi.status()]) + "\nOK";
 
-                // _result = String("status : ") + String(WiFi.status()) + "\nOK";
+        // _result = String("status : ") + String(WiFi.status()) + "\nOK";
       }
       else if ((cmd == "ip"))
       {
@@ -408,9 +416,10 @@ String processCommand(String _strLine)
         udp.writeTo((const uint8_t *)msg.c_str(), msg.length(), serverIP, port);
       }
     }
-    else if(cmd == "battery") {
+    else if (cmd == "battery")
+    {
 
-      //update battery value
+      // update battery value
       uint32_t Vbatt = 0;
       for (int i = 0; i < 16; i++)
       {
@@ -418,9 +427,11 @@ String processCommand(String _strLine)
       }
       float Vbattf = 2 * Vbatt / 16 / 1000.0; // attenuation ratio 1/2, mV --> V
 
-      _result = "bat_"+ String(Vbattf) + "\nOK";
+      _result = "bat_" + String(Vbattf) + "\nOK";
       packet.battery = Vbattf;
-
+    }
+    else if (cmd == "wakeup") {
+      resume_packet();
     }
     else
     {
@@ -455,31 +466,47 @@ void sendDataToServer(S_Udp_IMU_RawData_Packet &packet)
   udp.writeTo((uint8_t *)&packet, sizeof(S_Udp_IMU_RawData_Packet), serverIP, udpPort);
 }
 
+
 Task task_Packet(50, TASK_FOREVER, []()
                  {
-  packet.checkCode = 20230903;
-  packet.cmd = 0x10;
-  packet.dev_id = (uint16_t)g_Config.mDeviceNumber;
+                   packet.checkCode = 20230903;
+                   packet.cmd = 0x10;
+                   packet.dev_id = (uint16_t)g_Config.mDeviceNumber;
 
-  // linear acceleration
-  packet.aX = imudata[0];
-  packet.aY = imudata[1];
-  packet.aZ = imudata[2];
+                   // linear acceleration
+                   packet.aX = imudata[0];
+                   packet.aY = imudata[1];
+                   packet.aZ = imudata[2];
 
-  //yaw pitch roll
-  packet.yaw = imudata[3];
-  packet.pitch = imudata[4];
-  packet.roll = imudata[5];
+                   // yaw pitch roll
+                   packet.yaw = imudata[3];
+                   packet.pitch = imudata[4];
+                   packet.roll = imudata[5];
 
-  //quaternion
-  packet.qw = imudata[6];
-  packet.qx = imudata[7];
-  packet.qy = imudata[8];
-  packet.qz = imudata[9];
+                   // quaternion
+                   packet.qw = imudata[6];
+                   packet.qx = imudata[7];
+                   packet.qy = imudata[8];
+                   packet.qz = imudata[9];
 
-  // packet.battery = analogRead(batteryAnalogPin) / 4096.0 * 3.3 * 2;
+                   // packet.battery = analogRead(batteryAnalogPin) / 4096.0 * 3.3 * 2;
+                   sendDataToServer(packet);
 
-  sendDataToServer(packet); });
+                   // sendDataToServer(packet);
+                 });
+
+void stop_packet()
+{
+  g_bStopSend = true;
+  task_Packet.disable();
+}
+
+void resume_packet()
+{
+  g_bStopSend = false;
+  g_lStartSendTime = millis();
+  task_Packet.enable();
+}
 
 // WiFi 이벤트 핸들러 함수
 void WiFiEvent(WiFiEvent_t event)
@@ -604,7 +631,7 @@ void _updateTrigger() // trigger button process
   switch (btnTrigerStatus)
   {
   case 0:
-    if (digitalRead(buttonPins[triggerButtonPin]) == LOW )
+    if (digitalRead(buttonPins[triggerButtonPin]) == LOW)
     {
       btnTrigerStatus = 1;
       btnTrigerTime = millis();
@@ -620,6 +647,8 @@ void _updateTrigger() // trigger button process
       packet.fire_count++;
       btnTrigerStatus = 2;
       Serial.println("fire count : " + String(packet.fire_count));
+
+      resume_packet();
     }
     break;
   case 2: // wait cool time
@@ -636,13 +665,34 @@ void _updateTrigger() // trigger button process
 
 void loop()
 {
+
+  u_int32_t _lCurrentTime = millis();
+
+  if (g_bStopSend == false)
+  {
+
+    if (_lCurrentTime >= g_lStartSendTime)
+    {
+      if (_lCurrentTime - g_lStartSendTime > 30000)
+      { // 3 sec
+        // g_lStartSendTime = _lCurrentTime;
+        g_bStopSend = true;
+        task_Packet.disable();
+        Serial.println("stop send data");
+      }
+    }
+    else
+    { // overflow
+      _lCurrentTime = g_lStartSendTime;
+    }
+  }
+
   _updateImu();
 
-  if(digitalRead(buttonPins[setupButtonPin]) == HIGH)
+  if (digitalRead(buttonPins[setupButtonPin]) == HIGH)
   {
     _updateTrigger();
   }
-  
 
   runner.execute();
 }
