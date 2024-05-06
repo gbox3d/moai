@@ -156,6 +156,22 @@ ex> wifi send server_ip server_port data
 
 ```
 
+**wakeup**  
+
+지정된 시간동안 장치를 전송 활성화 상태로 유지합니다.   
+
+```shell    
+ex> wakeup 10000
+```
+10초간 활성화 상태로 유지합니다.   
+인자를 생략하면 3초간 활성화 상태로 유지합니다.   
+
+**sleep**  
+
+장치를 전송 비활성화 상태로 전환합니다.  
+
+
+
 
 
 ## branch

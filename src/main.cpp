@@ -5,8 +5,11 @@
 #include <AsyncUDP.h>
 
 #include <tonkey.hpp>
+
 #include "config.hpp"
 #include "moai_imu.hpp"
+#include "packet.hpp"
+
 
 #if defined(LOLIN_D32)
 
@@ -42,10 +45,10 @@ const int motorLedPin = 1;
 // const int batteryAnalogPin = 0;
 
 bool g_bStopSend = false;
-long g_lStartSendTime = 0;
+u32_t g_lStartSendTime = 0;
+u32_t g_lLimitSendTime = 30000;
 
-
-String strTitleMsg = "it is MOAI-C3 (DMP) revision 8";
+String strTitleMsg = "it is MOAI-C3 (DMP) revision 10";
 
 String strHelpMsg = "command list\n\
 help : show this message\n\
@@ -76,36 +79,6 @@ AsyncUDP udp;
 String udpAddress;
 int udpPort = 9250;
 
-struct S_Udp_IMU_RawData_Packet
-{
-  uint32_t checkCode;
-  uint8_t cmd;
-  uint8_t parm[3];
-  float aX;
-  float aY;
-  float aZ;
-  float gX;
-  float gY;
-  float gZ;
-  float mX;
-  float mY;
-  float mZ;
-  float extra;
-  float battery;
-
-  float pitch;
-  float roll;
-  float yaw;
-
-  uint16_t dev_id;
-  uint16_t fire_count;
-
-  // quaternion
-  float qw;
-  float qx;
-  float qy;
-  float qz;
-};
 
 static S_Udp_IMU_RawData_Packet packet;
 static float imudata[10];
@@ -117,9 +90,47 @@ Task task_udpBroadCast(
       // Serial.println("udp broadcast");
     });
 
-void resume_packet();
-void stop_packet();
+// void resume_packet();
+// void stop_packet();
 
+void sendDataToServer(S_Udp_IMU_RawData_Packet &packet)
+{
+  IPAddress serverIP;
+  serverIP.fromString(udpAddress); // Convert the C string to an IPAddress
+  udp.writeTo((uint8_t *)&packet, sizeof(S_Udp_IMU_RawData_Packet), serverIP, udpPort);
+}
+
+Task task_Packet(50, TASK_FOREVER, []() {
+    packet.checkCode = 20230903;
+    packet.cmd = 0x10;
+    packet.dev_id = (uint16_t)g_Config.mDeviceNumber;
+
+    // linear acceleration
+    packet.aX = imudata[0];
+    packet.aY = imudata[1];
+    packet.aZ = imudata[2];
+
+    // yaw pitch roll
+    packet.yaw = imudata[3];
+    packet.pitch = imudata[4];
+    packet.roll = imudata[5];
+
+    // quaternion
+    packet.qw = imudata[6];
+    packet.qx = imudata[7];
+    packet.qy = imudata[8];
+    packet.qz = imudata[9];
+
+    if(digitalRead(buttonPins[setupButtonPin]) == HIGH)
+    {
+      packet.parm[2] = 1;
+    }
+    else {
+      packet.parm[2] = 0;
+    }
+    
+    sendDataToServer(packet);
+  });
 
 String processCommand(String _strLine)
 {
@@ -430,9 +441,29 @@ String processCommand(String _strLine)
       _result = "bat_" + String(Vbattf) + "\nOK";
       packet.battery = Vbattf;
     }
-    else if (cmd == "wakeup") {
-      resume_packet();
+    else if (cmd == "wakeup")
+    {
+      // resume_packet();
+      // = g_MainParser.getToken(1);
+      if (g_MainParser.getTokenCount() > 1)
+      {
+        g_lLimitSendTime = g_MainParser.getToken(1).toInt();
+      }
+      else
+      {
+        g_lLimitSendTime = 3000;
+      }
+
+      g_bStopSend = false;
+      g_lStartSendTime = millis();
+      task_Packet.enable();
     }
+    else if (cmd == "sleep")
+    {
+      g_bStopSend = true;
+      task_Packet.disable();
+    }
+
     else
     {
       _result = "FAIL";
@@ -459,53 +490,15 @@ Task task_Cmd(
         
     } });
 
-void sendDataToServer(S_Udp_IMU_RawData_Packet &packet)
-{
-  IPAddress serverIP;
-  serverIP.fromString(udpAddress); // Convert the C string to an IPAddress
-  udp.writeTo((uint8_t *)&packet, sizeof(S_Udp_IMU_RawData_Packet), serverIP, udpPort);
-}
-
-
-Task task_Packet(50, TASK_FOREVER, []()
-                 {
-                   packet.checkCode = 20230903;
-                   packet.cmd = 0x10;
-                   packet.dev_id = (uint16_t)g_Config.mDeviceNumber;
-
-                   // linear acceleration
-                   packet.aX = imudata[0];
-                   packet.aY = imudata[1];
-                   packet.aZ = imudata[2];
-
-                   // yaw pitch roll
-                   packet.yaw = imudata[3];
-                   packet.pitch = imudata[4];
-                   packet.roll = imudata[5];
-
-                   // quaternion
-                   packet.qw = imudata[6];
-                   packet.qx = imudata[7];
-                   packet.qy = imudata[8];
-                   packet.qz = imudata[9];
-
-                   // packet.battery = analogRead(batteryAnalogPin) / 4096.0 * 3.3 * 2;
-                   sendDataToServer(packet);
-
-                   // sendDataToServer(packet);
-                 });
-
 void stop_packet()
 {
-  g_bStopSend = true;
-  task_Packet.disable();
+  processCommand("sleep");
 }
 
 void resume_packet()
 {
-  g_bStopSend = false;
-  g_lStartSendTime = millis();
-  task_Packet.enable();
+  processCommand("battery");
+  processCommand("wakeup 3000");
 }
 
 // WiFi 이벤트 핸들러 함수
@@ -583,9 +576,34 @@ void setup()
   {
     udp.onPacket([](AsyncUDPPacket _packet)
                  {
-        String _strRes = processCommand((const char *)_packet.data());
-        //response to the client
-        _packet.printf("#RES_%s",_strRes.c_str()); });
+                   Serial.println("received packet " + String(_packet.length()) + " bytes");
+                   Serial.println("data : " + String((const char *)_packet.data()));
+
+                   // 개행문자로 나누기
+                   String data = String((char *)_packet.data());
+
+                   // Splitting the data by newline character
+                   int index = 0;
+                   while (index != -1)
+                   {
+                     int nextIndex = data.indexOf('\n', index);
+                     String command = data.substring(index, nextIndex != -1 ? nextIndex : data.length());
+                     if (command.length() > 0)
+                     {
+                       String response = processCommand(command);
+                       Serial.println("Response: " + response);
+                       _packet.printf("#RES_%s\n", response.c_str());
+                     }
+                     if (nextIndex == -1)
+                       break;
+                     index = nextIndex + 1;
+                   }
+
+                   // String _strRes = processCommand((const char *)_packet.data());
+                   // //response to the client
+                   // Serial.println(_strRes);
+                   // _packet.printf("#RES_%s",_strRes.c_str());
+                 });
   }
 
   // imu setup
@@ -673,7 +691,7 @@ void loop()
 
     if (_lCurrentTime >= g_lStartSendTime)
     {
-      if (_lCurrentTime - g_lStartSendTime > 30000)
+      if (_lCurrentTime - g_lStartSendTime > g_lLimitSendTime)
       { // 3 sec
         // g_lStartSendTime = _lCurrentTime;
         g_bStopSend = true;
