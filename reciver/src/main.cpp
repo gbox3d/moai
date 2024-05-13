@@ -127,7 +127,8 @@ Task task_Cmd(
           {
             _result = "FAIL";
           }
-          Serial.println(_result);
+          
+          Serial.println('%' + _result);
           Serial.println();
         }
       } });
@@ -149,7 +150,7 @@ void setup()
   digitalWrite(LED_BUILTIN, HIGH);
 
   Serial.begin(115200);
-  Serial.println("\n\nmoai reciver start\n\n");
+  Serial.println("\n\n#moai reciver start\n\n");
 
   g_runner.init();
   g_runner.addTask(task_Cmd);
@@ -175,7 +176,7 @@ void setup()
   // WiFi.onSoftAPModeStationConnected(&onStationConnected);
 
   // Serial.println("AP 모드로 설정됨");
-  Serial.print("AP SSID: ");
+  Serial.print("#AP SSID: ");
   Serial.println(ssid);
 
   // UDP 서버 시작
@@ -186,7 +187,7 @@ void setup()
   // UDP 서버 시작
   if (udp.listen(udpPort))
   {
-    Serial.print("UDP start on port : ");
+    Serial.print("#UDP start on port : ");
     Serial.println(udpPort);
     // 수신 이벤트 핸들러 등록
     udp.onPacket([](AsyncUDPPacket packet)
@@ -217,7 +218,7 @@ void setup()
 
                        lastTime = millis();
 
-                       Serial.printf("\n# %d %d %f %f %f %f %f\n", fire_count , mode_switch,battery ,quat[0], quat[1], quat[2], quat[3]);
+                       Serial.printf("\n$ %d %d %f %f %f %f %f\n", fire_count , mode_switch,battery ,quat[0], quat[1], quat[2], quat[3]);
                      }
 
                      // 데이터 출력
@@ -251,7 +252,7 @@ void setup()
   }
   else
   {
-    Serial.println("UDP 서버 시작 실패");
+    Serial.println("#UDP start failed");
   }
 }
 
