@@ -47,8 +47,10 @@ const int motorLedPin = 1;
 bool g_bStopSend = false;
 u32_t g_lStartSendTime = 0;
 u32_t g_lLimitSendTime = 30000;
+int prev_modeSwitchStatus = 0;
+bool g_bFire = true;
 
-String strTitleMsg = "it is MOAI-C3 (DMP) revision 10";
+String strTitleMsg = "it is MOAI-C3 (DMP) revision 11";
 
 String strHelpMsg = "command list\n\
 help : show this message\n\
@@ -73,6 +75,7 @@ Scheduler runner;
 
 bool bVerbose = false;
 bool bImuInit = false;
+
 
 //--------udp network code
 AsyncUDP udp;
@@ -128,6 +131,9 @@ Task task_Packet(50, TASK_FOREVER, []() {
     else {
       packet.parm[2] = 0;
     }
+
+
+    packet.parm[1] = g_bFire ? 1 : 0;
     
     sendDataToServer(packet);
   });
@@ -463,7 +469,29 @@ String processCommand(String _strLine)
       g_bStopSend = true;
       task_Packet.disable();
     }
-
+    else if(cmd == "gun") {
+      if(g_MainParser.getTokenCount() > 1)
+      {
+        String _strCmd = g_MainParser.getToken(1);
+        if(_strCmd == "enable")
+        {
+          g_bFire = true;
+        }
+        else if(_strCmd == "disable")
+        {
+          // stop_packet();
+          g_bFire = false;
+        }
+        else if(_strCmd == "status")
+        {
+          _result = String(g_bFire) + "\nOK";
+        }
+        else
+        {
+          _result = "FAIL";
+        }
+      }
+    }
     else
     {
       _result = "FAIL";
@@ -557,6 +585,9 @@ void setup()
 
   // battery setup
   pinMode(batteryPin, INPUT);
+
+  prev_modeSwitchStatus = digitalRead(buttonPins[setupButtonPin]);
+  g_bFire = true;
 
   // connect to wifi
   WiFi.onEvent(WiFiEvent);
@@ -681,6 +712,7 @@ void _updateTrigger() // trigger button process
   }
 }
 
+
 void loop()
 {
 
@@ -707,7 +739,14 @@ void loop()
 
   _updateImu();
 
-  if (digitalRead(buttonPins[setupButtonPin]) == HIGH)
+
+  if(prev_modeSwitchStatus != digitalRead(buttonPins[setupButtonPin]) ) {
+    resume_packet();
+    prev_modeSwitchStatus = digitalRead(buttonPins[setupButtonPin]);
+  }
+
+
+  if (prev_modeSwitchStatus == HIGH && g_bFire == true)
   {
     _updateTrigger();
   }
