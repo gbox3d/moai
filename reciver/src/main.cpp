@@ -13,6 +13,7 @@ AsyncUDP udp;
 Scheduler g_runner;
 tonkey g_MainParser;
 String ssid = "moai_";
+String password = "3117-2001";
 
 bool isConnect = false;
 u_int32_t lastTime = 0;
@@ -23,6 +24,7 @@ uint16_t remotePort = 7204;
 float battery;
 uint16_t fire_count;
 u16_t mode_switch;
+int gun_status;
 float quat[4]; // wxyz
 
 Task taskBlink(1000, TASK_FOREVER, []()
@@ -71,8 +73,9 @@ Task task_Cmd(
 
           if (cmd == "about")
           {
-            _result = "it is moai reciver \n";
-            _result += "ssid : " + ssid + "\n";
+            _result = "it is [moai receiver],version 1.0.0,";
+            _result += "ssid : " + ssid + ",";
+            _result += "passwd : " + password + ",";
             _result += "OK";
           }
           else if (cmd == "blinkfast")
@@ -95,6 +98,25 @@ Task task_Cmd(
               remoteIp, remotePort);
 
           }
+          else if(cmd == "gun") {
+
+            if(g_MainParser.getTokenCount() > 1) {
+              String msg = "gun ";
+
+              if(g_MainParser.getToken(1) == "enable") {
+                msg += "enable";
+                
+              }
+              else if(g_MainParser.getToken(1) == "disable") {
+                msg += "disable";
+              }
+              
+              msg += "\n";
+
+              udp.writeTo((const uint8_t *)msg.c_str(), msg.length(),
+                  remoteIp, remotePort);
+            }
+          }
           else if(cmd =="apinfo") {
             struct station_info *station_list = wifi_softap_get_station_info();
 
@@ -105,7 +127,7 @@ Task task_Cmd(
               wifi_softap_free_station_info(); // 목록의 메모리를 해제
             }
             else {
-              _result = "nosta\nOK\n";
+              _result = "nosta,OK\n";
             }
             // while (station_list != NULL) {
             //     remoteIp = IPAddress((&station_list->ip)->addr);
@@ -129,7 +151,7 @@ Task task_Cmd(
           }
           
           Serial.println('%' + _result);
-          Serial.println();
+          Serial.println(); // new line
         }
       } });
 
@@ -169,9 +191,9 @@ void setup()
   ssid += chipId;
 
   // AP 모드 설정
-  const char *password = "3117-2001"; // AP의 비밀번호
+  // const char *password = "3117-2001"; // AP의 비밀번호
   WiFi.mode(WIFI_AP);
-  WiFi.softAP(ssid.c_str(), password);
+  WiFi.softAP(ssid.c_str(), password.c_str());
 
   // WiFi.onSoftAPModeStationConnected(&onStationConnected);
 
@@ -210,6 +232,7 @@ void setup()
                        battery = imuData.battery;
 
                        mode_switch = imuData.parm[2];
+                       gun_status = imuData.parm[1];
 
                        quat[0] = imuData.qw;
                        quat[1] = imuData.qx;
@@ -218,7 +241,7 @@ void setup()
 
                        lastTime = millis();
 
-                       Serial.printf("\n$ %d %d %f %f %f %f %f\n", fire_count , mode_switch,battery ,quat[0], quat[1], quat[2], quat[3]);
+                       Serial.printf("\n$ %d %d %d %f %f %f %f %f\n", fire_count , mode_switch,gun_status ,battery ,quat[0], quat[1], quat[2], quat[3]);
                      }
 
                      // 데이터 출력
