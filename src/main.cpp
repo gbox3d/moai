@@ -50,7 +50,7 @@ u32_t g_lLimitSendTime = 30000;
 int prev_modeSwitchStatus = 0;
 bool g_bFire = true;
 
-String strTitleMsg = "it is MOAI-C3 (DMP) revision 11";
+String strTitleMsg = "it is MOAI-C3 (DMP) revision 12";
 
 String strHelpMsg = "command list\n\
 help : show this message\n\
@@ -326,6 +326,12 @@ String processCommand(String _strLine)
                   String("offset3 : ") + String(pOffset[3]) + "\n" +
                   String("offset4 : ") + String(pOffset[4]) + "\n" +
                   String("offset5 : ") + String(pOffset[5]) + "\nOK";
+      }
+      else if(_strCmd == "notuse") {
+        g_Config.mIsUseImu = false;
+      }
+      else if(_strCmd == "use") {
+        g_Config.mIsUseImu = true;
       }
       else
       {
@@ -637,8 +643,18 @@ void setup()
                  });
   }
 
-  // imu setup
-  initDmp(g_Config.mOffsets); // start dmp
+
+  if(g_Config.mIsUseImu)
+  { 
+    Serial.println("try connect IMU.....");
+    // imu setup
+    if(!initDmp(g_Config.mOffsets)) { // start dmp
+      closeDmp();
+    }
+  }
+  else {
+    Serial.println("IMU is not used");
+  }
 
   // task setup
   runner.init();
@@ -684,6 +700,7 @@ void _updateTrigger() // trigger button process
     {
       btnTrigerStatus = 1;
       btnTrigerTime = millis();
+      resume_packet();
 
       // Serial.println("fire button pressed");
 
@@ -693,14 +710,35 @@ void _updateTrigger() // trigger button process
   case 1:
     if (digitalRead(buttonPins[triggerButtonPin]) == HIGH)
     {
-      packet.fire_count++;
+      btnTrigerStatus = 0;
+      digitalWrite(ledPins[motorLedPin], LOW);
+    }
+    
+    if (millis() - btnTrigerTime > g_Config.mTriggerDelay) {
       btnTrigerStatus = 2;
+      packet.fire_count++;
       Serial.println("fire count : " + String(packet.fire_count));
+      
+      
+      // Serial.println("fire count : " + String(packet.fire_count));
+      // resume_packet();
+    } 
 
-      resume_packet();
+    // Serial.println("delay " + (millis() - btnTrigerTime));
+
+
+    break;
+  case 2:
+    if (digitalRead(buttonPins[triggerButtonPin]) == HIGH)
+    {
+      
+      btnTrigerStatus = 3;
+      btnTrigerTime = millis();
+
+      
     }
     break;
-  case 2: // wait cool time
+  case 3: // wait cool time
     if (millis() - btnTrigerTime > g_Config.mTriggerDelay)
     {
       btnTrigerStatus = 0;
