@@ -16,6 +16,7 @@ public:
     int mTargetPort;
     int16_t mOffsets[6];
     int mTriggerDelay;
+    bool mIsUseImu;
 
     bool save()
     {
@@ -26,6 +27,7 @@ public:
         preferences.putString("mTargetIp", mTargetIp);
         preferences.putInt("mTargetPort", mTargetPort);
         preferences.putInt("mTriggerDelay", mTriggerDelay);
+        preferences.putBool("mIsUseImu", mIsUseImu);
 
         for (int i = 0; i < 6; i++)
         {
@@ -47,6 +49,7 @@ public:
         mTargetPort = preferences.getInt("mTargetPort", 0);
         mDeviceNumber = preferences.getInt("mDeviceNumber", 0);
         mTriggerDelay = preferences.getInt("mTriggerDelay", 150);
+        mIsUseImu = preferences.getBool("mIsUseImu", false);
 
         for (int i = 0; i < 6; i++)
         {
@@ -72,6 +75,7 @@ public:
                String("mTargetPort: ") + String(mTargetPort) + "\n" +
                String("mDeviceNumber: ") + String(mDeviceNumber) + "\n" +
                String("mTriggerDelay: ") + String(mTriggerDelay) + "\n" +
+               String("mIsUseImu: ") + String(mIsUseImu) + "\n" +
                String("mOffsets: ") + "\n" +
                String("offset0: ") + String(mOffsets[0]) + "\n" +
                String("offset1: ") + String(mOffsets[1]) + "\n" +
