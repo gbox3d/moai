@@ -10,7 +10,6 @@
 #include "moai_imu.hpp"
 #include "packet.hpp"
 
-
 #if defined(LOLIN_D32)
 
 const int ledPins[] = {4, 5};
@@ -23,6 +22,7 @@ const int ledPins[] = {D10, D9};
 const int analogPins[] = {D0, D1};
 const int buttonPins[] = {D8, D2};
 const int batteryPin = A0;
+const int batStatusPin[] = {D3, D4, D5};
 
 #elif defined(LOLIN_D32_LITE)
 const int ledPins[] = {4, 5};
@@ -50,7 +50,7 @@ u32_t g_lLimitSendTime = 30000;
 int prev_modeSwitchStatus = 0;
 bool g_bFire = true;
 
-String strTitleMsg = "it is MOAI-C3 (DMP) revision 12";
+String strTitleMsg = "it is MOAI-C3 (DMP) revision 14";
 
 String strHelpMsg = "command list\n\
 help : show this message\n\
@@ -76,12 +76,10 @@ Scheduler runner;
 bool bVerbose = false;
 bool bImuInit = false;
 
-
 //--------udp network code
 AsyncUDP udp;
 String udpAddress;
 int udpPort = 9250;
-
 
 static S_Udp_IMU_RawData_Packet packet;
 static float imudata[10];
@@ -103,7 +101,8 @@ void sendDataToServer(S_Udp_IMU_RawData_Packet &packet)
   udp.writeTo((uint8_t *)&packet, sizeof(S_Udp_IMU_RawData_Packet), serverIP, udpPort);
 }
 
-Task task_Packet(50, TASK_FOREVER, []() {
+Task task_Packet(50, TASK_FOREVER, []()
+                 {
     packet.checkCode = 20230903;
     packet.cmd = 0x10;
     packet.dev_id = (uint16_t)g_Config.mDeviceNumber;
@@ -135,8 +134,7 @@ Task task_Packet(50, TASK_FOREVER, []() {
 
     packet.parm[1] = g_bFire ? 1 : 0;
     
-    sendDataToServer(packet);
-  });
+    sendDataToServer(packet); });
 
 String processCommand(String _strLine)
 {
@@ -327,10 +325,12 @@ String processCommand(String _strLine)
                   String("offset4 : ") + String(pOffset[4]) + "\n" +
                   String("offset5 : ") + String(pOffset[5]) + "\nOK";
       }
-      else if(_strCmd == "notuse") {
+      else if (_strCmd == "notuse")
+      {
         g_Config.mIsUseImu = false;
       }
-      else if(_strCmd == "use") {
+      else if (_strCmd == "use")
+      {
         g_Config.mIsUseImu = true;
       }
       else
@@ -475,20 +475,21 @@ String processCommand(String _strLine)
       g_bStopSend = true;
       task_Packet.disable();
     }
-    else if(cmd == "gun") {
-      if(g_MainParser.getTokenCount() > 1)
+    else if (cmd == "gun")
+    {
+      if (g_MainParser.getTokenCount() > 1)
       {
         String _strCmd = g_MainParser.getToken(1);
-        if(_strCmd == "enable")
+        if (_strCmd == "enable")
         {
           g_bFire = true;
         }
-        else if(_strCmd == "disable")
+        else if (_strCmd == "disable")
         {
           // stop_packet();
           g_bFire = false;
         }
-        else if(_strCmd == "status")
+        else if (_strCmd == "status")
         {
           _result = String(g_bFire) + "\nOK";
         }
@@ -534,6 +535,45 @@ void resume_packet()
   processCommand("battery");
   processCommand("wakeup 3000");
 }
+
+Task task_checkBattery(
+    3000, TASK_FOREVER, []()
+    {
+      // update battery value
+      uint32_t Vbatt = 0;
+      for (int i = 0; i < 16; i++)
+      {
+        Vbatt = Vbatt + analogReadMilliVolts(batteryPin); // ADC with correction
+      }
+      float Vbattf = 2 * Vbatt / 16 / 1000.0; // attenuation ratio 1/2, mV --> V
+
+      // Serial.println("battery : " + String(Vbattf));
+
+      if(Vbattf > 3.7)
+      {
+        //green
+        digitalWrite(batStatusPin[0], LOW); //R 
+        digitalWrite(batStatusPin[1], HIGH); //G
+        
+      }
+      else if(Vbattf > 3.3)
+      {
+        //yellow
+        digitalWrite(batStatusPin[0], HIGH); //R
+        digitalWrite(batStatusPin[1], HIGH); //G
+      }
+      else
+      {
+        //red
+        digitalWrite(batStatusPin[0], HIGH); //R
+        digitalWrite(batStatusPin[1], LOW); //G}
+      
+      }
+      packet.battery = Vbattf;
+
+
+
+    });
 
 // WiFi 이벤트 핸들러 함수
 void WiFiEvent(WiFiEvent_t event)
@@ -643,17 +683,32 @@ void setup()
                  });
   }
 
-
-  if(g_Config.mIsUseImu)
-  { 
+  if (g_Config.mIsUseImu)
+  {
     Serial.println("try connect IMU.....");
     // imu setup
-    if(!initDmp(g_Config.mOffsets)) { // start dmp
+    if (!initDmp(g_Config.mOffsets))
+    { // start dmp
       closeDmp();
     }
   }
-  else {
+  else
+  {
     Serial.println("IMU is not used");
+
+    //batStatusPin setup
+    for (int i = 0; i < sizeof(batStatusPin) / sizeof(batStatusPin[0]); i++)
+    {
+      pinMode(batStatusPin[i], OUTPUT);
+      // digitalWrite(batStatusPin[i], LOW);
+      delay(250);
+      digitalWrite(batStatusPin[i], HIGH);
+      delay(500);
+      digitalWrite(batStatusPin[i], LOW);
+    }
+
+    // digitalWrite(batStatusPin[2], HIGH);
+
   }
 
   // task setup
@@ -662,10 +717,12 @@ void setup()
   runner.addTask(task_Cmd);
   runner.addTask(task_Packet);
   runner.addTask(task_udpBroadCast);
+  runner.addTask(task_checkBattery);
 
   task_Cmd.enable();
   task_Packet.enable();
   task_udpBroadCast.enable();
+  task_checkBattery.enable();
 
   // Serial.println(strTitleMsg);
 }
@@ -713,29 +770,26 @@ void _updateTrigger() // trigger button process
       btnTrigerStatus = 0;
       digitalWrite(ledPins[motorLedPin], LOW);
     }
-    
-    if (millis() - btnTrigerTime > g_Config.mTriggerDelay) {
+
+    if (millis() - btnTrigerTime > g_Config.mTriggerDelay)
+    {
       btnTrigerStatus = 2;
       packet.fire_count++;
       Serial.println("fire count : " + String(packet.fire_count));
-      
-      
+
       // Serial.println("fire count : " + String(packet.fire_count));
       // resume_packet();
-    } 
+    }
 
     // Serial.println("delay " + (millis() - btnTrigerTime));
-
 
     break;
   case 2:
     if (digitalRead(buttonPins[triggerButtonPin]) == HIGH)
     {
-      
+
       btnTrigerStatus = 3;
       btnTrigerTime = millis();
-
-      
     }
     break;
   case 3: // wait cool time
@@ -749,7 +803,6 @@ void _updateTrigger() // trigger button process
     break;
   }
 }
-
 
 void loop()
 {
@@ -777,12 +830,11 @@ void loop()
 
   _updateImu();
 
-
-  if(prev_modeSwitchStatus != digitalRead(buttonPins[setupButtonPin]) ) {
+  if (prev_modeSwitchStatus != digitalRead(buttonPins[setupButtonPin]))
+  {
     resume_packet();
     prev_modeSwitchStatus = digitalRead(buttonPins[setupButtonPin]);
   }
-
 
   if (prev_modeSwitchStatus == HIGH && g_bFire == true)
   {
