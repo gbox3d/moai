@@ -50,6 +50,13 @@ u32_t g_lLimitSendTime = 30000;
 int prev_modeSwitchStatus = 0;
 bool g_bFire = true;
 
+// PWM 채널 설정
+const int pwmFreq = 5000;
+const int pwmResolution = 8;
+const int pwmChannelR = 0;
+const int pwmChannelG = 1;
+const int pwmChannelB = 2;
+
 String strTitleMsg = "it is MOAI-C3 (DMP) revision 14";
 
 String strHelpMsg = "command list\n\
@@ -552,21 +559,29 @@ Task task_checkBattery(
       if(Vbattf > 3.7)
       {
         //green
-        digitalWrite(batStatusPin[0], LOW); //R 
-        digitalWrite(batStatusPin[1], HIGH); //G
-        
+        // digitalWrite(batStatusPin[0], LOW); //R 
+        // digitalWrite(batStatusPin[1], HIGH); //G
+        ledcWrite(pwmChannelR, 0);
+        ledcWrite(pwmChannelG, 255);
+        ledcWrite(pwmChannelB, 0);
       }
       else if(Vbattf > 3.3)
       {
         //yellow
-        digitalWrite(batStatusPin[0], HIGH); //R
-        digitalWrite(batStatusPin[1], HIGH); //G
+        // digitalWrite(batStatusPin[0], HIGH); //R
+        // digitalWrite(batStatusPin[1], HIGH); //G
+        ledcWrite(pwmChannelR, 96);
+        ledcWrite(pwmChannelG, 128);
+        ledcWrite(pwmChannelB, 0);
       }
       else
       {
         //red
-        digitalWrite(batStatusPin[0], HIGH); //R
-        digitalWrite(batStatusPin[1], LOW); //G}
+        // digitalWrite(batStatusPin[0], HIGH); //R
+        // digitalWrite(batStatusPin[1], LOW); //G}
+        ledcWrite(pwmChannelR, 255);
+        ledcWrite(pwmChannelG, 0);
+        ledcWrite(pwmChannelB, 0);
       
       }
       packet.battery = Vbattf;
@@ -592,6 +607,7 @@ void WiFiEvent(WiFiEvent_t event)
   case SYSTEM_EVENT_STA_GOT_IP:
     Serial.print("Got IP: ");
     Serial.println(WiFi.localIP());
+    // resume_packet();
     break;
   default:
     break;
@@ -696,16 +712,52 @@ void setup()
   {
     Serial.println("IMU is not used");
 
+    ledcSetup(pwmChannelR, pwmFreq, pwmResolution);
+    ledcAttachPin(batStatusPin[0], pwmChannelR);
+
+    ledcSetup(pwmChannelG, pwmFreq, pwmResolution);
+    ledcAttachPin(batStatusPin[1], pwmChannelG);
+
+    ledcSetup(pwmChannelB, pwmFreq, pwmResolution);
+    ledcAttachPin(batStatusPin[2], pwmChannelB);
+
+
+    Serial.println("led red");
+    //test led
+    ledcWrite(pwmChannelR, 255);
+    ledcWrite(pwmChannelG, 0);
+    ledcWrite(pwmChannelB, 0);
+    delay(1000);
+
+
+    Serial.println("led yellow");
+    ledcWrite(pwmChannelR, 96);
+    ledcWrite(pwmChannelG, 128);
+    ledcWrite(pwmChannelB, 0);
+    delay(1000);
+
+    Serial.println("led green");
+    ledcWrite(pwmChannelR, 0);
+    ledcWrite(pwmChannelG, 255);
+    ledcWrite(pwmChannelB, 0);
+    delay(1000);
+
+    
+
+
+
+
     //batStatusPin setup
-    for (int i = 0; i < sizeof(batStatusPin) / sizeof(batStatusPin[0]); i++)
-    {
-      pinMode(batStatusPin[i], OUTPUT);
-      // digitalWrite(batStatusPin[i], LOW);
-      delay(250);
-      digitalWrite(batStatusPin[i], HIGH);
-      delay(500);
-      digitalWrite(batStatusPin[i], LOW);
-    }
+    // for (int i = 0; i < sizeof(batStatusPin) / sizeof(batStatusPin[0]); i++)
+    // {
+    //   pinMode(batStatusPin[i], OUTPUT);
+
+    //   // digitalWrite(batStatusPin[i], LOW);
+    //   // delay(250);
+    //   // digitalWrite(batStatusPin[i], HIGH);
+    //   // delay(500);
+    //   // digitalWrite(batStatusPin[i], LOW);
+    // }
 
     // digitalWrite(batStatusPin[2], HIGH);
 
