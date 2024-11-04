@@ -106,7 +106,7 @@ Task task_Cmd(
               if(g_MainParser.getToken(1) == "enable") {
                 msg += "enable";
                 
-              }
+              } 
               else if(g_MainParser.getToken(1) == "disable") {
                 msg += "disable";
               }

@@ -1,0 +1,23 @@
+{
+	"folders": [
+		{
+			"path": "."
+		},
+		{
+			"path": "6050DMP"
+		},
+		{
+			"path": "reciver"
+		},
+		{
+			"path": "../fireBolt/pio_example/ex09_ws2812"
+		},
+		{
+			"path": "../fireBolt/pio_example/ex00_cli"
+		},
+		{
+			"path": "../fireBolt/utils/kunoitch"
+		}
+	],
+	"settings": {}
+}

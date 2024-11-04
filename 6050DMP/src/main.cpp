@@ -1,5 +1,6 @@
 #include <Arduino.h>
 #include <TaskScheduler.h>
+#include <Adafruit_NeoPixel.h>
 // #include <WiFiManager.h> // WiFiManager 라이브러리를 포함
 #include <WiFi.h>
 #include <AsyncUDP.h>
@@ -35,6 +36,12 @@ const int analogPins[] = {34, 35};
 const int buttonPins[] = {18, 23};
 const int batteryPin = 36;
 #endif
+
+
+Adafruit_NeoPixel *g_pPixels;
+// Add these global variables at the top of your code
+uint32_t g_batteryColor = 0;
+bool g_showBatteryStatus = true;
 
 const int setupButtonPin = 0;
 const int triggerButtonPin = 1;
@@ -543,51 +550,67 @@ void resume_packet()
   processCommand("wakeup 3000");
 }
 
+
+// Modify the task_checkBattery to store the battery color
 Task task_checkBattery(
     3000, TASK_FOREVER, []()
     {
-      // update battery value
-      uint32_t Vbatt = 0;
-      for (int i = 0; i < 16; i++)
-      {
-        Vbatt = Vbatt + analogReadMilliVolts(batteryPin); // ADC with correction
-      }
-      float Vbattf = 2 * Vbatt / 16 / 1000.0; // attenuation ratio 1/2, mV --> V
+        // update battery value
+        uint32_t Vbatt = 0;
+        for (int i = 0; i < 16; i++)
+        {
+            Vbatt = Vbatt + analogReadMilliVolts(batteryPin); // ADC with correction
+        }
+        float Vbattf = 2 * Vbatt / 16 / 1000.0; // attenuation ratio 1/2, mV --> V
 
-      // Serial.println("battery : " + String(Vbattf));
+        // Store battery color based on voltage
+        if (Vbattf > 3.7)
+        {
+            // Battery good: Green
+            g_batteryColor = g_pPixels->Color(0, 255, 0);
+        }
+        else if (Vbattf > 3.3)
+        {
+            // Battery medium: Yellow
+            g_batteryColor = g_pPixels->Color(255, 150, 0);
+        }
+        else
+        {
+            // Battery low: Red
+            g_batteryColor = g_pPixels->Color(255, 0, 0);
+        }
 
-      if(Vbattf > 3.7)
-      {
-        //green
-        // digitalWrite(batStatusPin[0], LOW); //R 
-        // digitalWrite(batStatusPin[1], HIGH); //G
-        ledcWrite(pwmChannelR, 0);
-        ledcWrite(pwmChannelG, 255);
-        ledcWrite(pwmChannelB, 0);
-      }
-      else if(Vbattf > 3.3)
-      {
-        //yellow
-        // digitalWrite(batStatusPin[0], HIGH); //R
-        // digitalWrite(batStatusPin[1], HIGH); //G
-        ledcWrite(pwmChannelR, 96);
-        ledcWrite(pwmChannelG, 128);
-        ledcWrite(pwmChannelB, 0);
-      }
-      else
-      {
-        //red
-        // digitalWrite(batStatusPin[0], HIGH); //R
-        // digitalWrite(batStatusPin[1], LOW); //G}
-        ledcWrite(pwmChannelR, 255);
-        ledcWrite(pwmChannelG, 0);
-        ledcWrite(pwmChannelB, 0);
-      
-      }
-      packet.battery = Vbattf;
+        packet.battery = Vbattf;
+    });
 
+// Create a new task to update the LED every 500 milliseconds
+Task task_updateLED(
+    500, TASK_FOREVER, []()
+    {
+        if (WiFi.status() == WL_CONNECTED)
+        {
+            // Wi-Fi is connected
+            if (g_showBatteryStatus)
+            {
+                // Show battery status
+                g_pPixels->setPixelColor(0, g_batteryColor);
+            }
+            else
+            {
+                // Show Wi-Fi status (blue)
+                g_pPixels->setPixelColor(0, g_pPixels->Color(0, 0, 255));
+            }
+            g_pPixels->show();
 
-
+            // Toggle the flag
+            g_showBatteryStatus = !g_showBatteryStatus;
+        }
+        else
+        {
+            // Wi-Fi is not connected, always show battery status
+            g_pPixels->setPixelColor(0, g_batteryColor);
+            g_pPixels->show();
+        }
     });
 
 // WiFi 이벤트 핸들러 함수
@@ -629,11 +652,18 @@ void setup()
   udpPort = g_Config.mTargetPort;
 
   // io setup
-  for (int i = 0; i < sizeof(ledPins) / sizeof(ledPins[0]); i++)
-  {
-    pinMode(ledPins[i], OUTPUT);
-    digitalWrite(ledPins[i], LOW);
-  }
+  g_pPixels = new Adafruit_NeoPixel(1, ledPins[0], NEO_GRB + NEO_KHZ800);
+  g_pPixels->begin();
+  g_pPixels->clear();
+  
+  pinMode(ledPins[1], OUTPUT);
+  digitalWrite(ledPins[1], LOW);
+
+  // for (int i = 0; i < sizeof(ledPins) / sizeof(ledPins[0]); i++)
+  // {
+  //   pinMode(ledPins[i], OUTPUT);
+  //   digitalWrite(ledPins[i], LOW);
+  // }
 
   for (int i = 0; i < sizeof(buttonPins) / sizeof(buttonPins[0]); i++)
   {
@@ -712,35 +742,49 @@ void setup()
   {
     Serial.println("IMU is not used");
 
-    ledcSetup(pwmChannelR, pwmFreq, pwmResolution);
-    ledcAttachPin(batStatusPin[0], pwmChannelR);
+    //test ws2812 led
+    g_pPixels->setPixelColor(0, g_pPixels->Color(255, 0, 0));
+    g_pPixels->show();
+    delay(1000);
 
-    ledcSetup(pwmChannelG, pwmFreq, pwmResolution);
-    ledcAttachPin(batStatusPin[1], pwmChannelG);
+    g_pPixels->setPixelColor(0, g_pPixels->Color(0, 255, 0));
+    g_pPixels->show();
+    delay(1000);
 
-    ledcSetup(pwmChannelB, pwmFreq, pwmResolution);
-    ledcAttachPin(batStatusPin[2], pwmChannelB);
-
-
-    Serial.println("led red");
-    //test led
-    ledcWrite(pwmChannelR, 255);
-    ledcWrite(pwmChannelG, 0);
-    ledcWrite(pwmChannelB, 0);
+    g_pPixels->setPixelColor(0, g_pPixels->Color(0, 0, 255));
+    g_pPixels->show();
     delay(1000);
 
 
-    Serial.println("led yellow");
-    ledcWrite(pwmChannelR, 96);
-    ledcWrite(pwmChannelG, 128);
-    ledcWrite(pwmChannelB, 0);
-    delay(1000);
+    // ledcSetup(pwmChannelR, pwmFreq, pwmResolution);
+    // ledcAttachPin(batStatusPin[0], pwmChannelR);
 
-    Serial.println("led green");
-    ledcWrite(pwmChannelR, 0);
-    ledcWrite(pwmChannelG, 255);
-    ledcWrite(pwmChannelB, 0);
-    delay(1000);
+    // ledcSetup(pwmChannelG, pwmFreq, pwmResolution);
+    // ledcAttachPin(batStatusPin[1], pwmChannelG);
+
+    // ledcSetup(pwmChannelB, pwmFreq, pwmResolution);
+    // ledcAttachPin(batStatusPin[2], pwmChannelB);
+
+
+    // Serial.println("led red");
+    // //test led
+    // ledcWrite(pwmChannelR, 255);
+    // ledcWrite(pwmChannelG, 0);
+    // ledcWrite(pwmChannelB, 0);
+    // delay(1000);
+
+
+    // Serial.println("led yellow");
+    // ledcWrite(pwmChannelR, 96);
+    // ledcWrite(pwmChannelG, 128);
+    // ledcWrite(pwmChannelB, 0);
+    // delay(1000);
+
+    // Serial.println("led green");
+    // ledcWrite(pwmChannelR, 0);
+    // ledcWrite(pwmChannelG, 255);
+    // ledcWrite(pwmChannelB, 0);
+    // delay(1000);
 
     
 
@@ -770,11 +814,13 @@ void setup()
   runner.addTask(task_Packet);
   runner.addTask(task_udpBroadCast);
   runner.addTask(task_checkBattery);
+  runner.addTask(task_updateLED);
 
   task_Cmd.enable();
   task_Packet.enable();
   task_udpBroadCast.enable();
   task_checkBattery.enable();
+  task_updateLED.enable();
 
   // Serial.println(strTitleMsg);
 }
