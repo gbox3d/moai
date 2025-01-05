@@ -30,6 +30,9 @@ analog input 은 D0, D1 핀을 사용합니다.
 button input 은 D8, D2 핀을 사용합니다.  
 6050 용 interrupt 핀은 D3 핀을 사용합니다.  
 
+**ws2812 led**
+c3  -> d10, 밧데리 상태 표시용 led   
+
 
 ## Command
 
