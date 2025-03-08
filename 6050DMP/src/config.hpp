@@ -45,8 +45,8 @@ public:
         mStrAp = preferences.getString("mStrAp", "");
         mStrPassword = preferences.getString("mStrPassword", "");
 
-        mTargetIp = preferences.getString("mTargetIp", "");
-        mTargetPort = preferences.getInt("mTargetPort", 0);
+        mTargetIp = preferences.getString("mTargetIp", "192.168.4.1");
+        mTargetPort = preferences.getInt("mTargetPort", 9250);
         mDeviceNumber = preferences.getInt("mDeviceNumber", 0);
         mTriggerDelay = preferences.getInt("mTriggerDelay", 150);
         mIsUseImu = preferences.getBool("mIsUseImu", false);

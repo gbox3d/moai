@@ -755,56 +755,6 @@ void setup()
     g_pPixels->show();
     delay(1000);
 
-
-    // ledcSetup(pwmChannelR, pwmFreq, pwmResolution);
-    // ledcAttachPin(batStatusPin[0], pwmChannelR);
-
-    // ledcSetup(pwmChannelG, pwmFreq, pwmResolution);
-    // ledcAttachPin(batStatusPin[1], pwmChannelG);
-
-    // ledcSetup(pwmChannelB, pwmFreq, pwmResolution);
-    // ledcAttachPin(batStatusPin[2], pwmChannelB);
-
-
-    // Serial.println("led red");
-    // //test led
-    // ledcWrite(pwmChannelR, 255);
-    // ledcWrite(pwmChannelG, 0);
-    // ledcWrite(pwmChannelB, 0);
-    // delay(1000);
-
-
-    // Serial.println("led yellow");
-    // ledcWrite(pwmChannelR, 96);
-    // ledcWrite(pwmChannelG, 128);
-    // ledcWrite(pwmChannelB, 0);
-    // delay(1000);
-
-    // Serial.println("led green");
-    // ledcWrite(pwmChannelR, 0);
-    // ledcWrite(pwmChannelG, 255);
-    // ledcWrite(pwmChannelB, 0);
-    // delay(1000);
-
-    
-
-
-
-
-    //batStatusPin setup
-    // for (int i = 0; i < sizeof(batStatusPin) / sizeof(batStatusPin[0]); i++)
-    // {
-    //   pinMode(batStatusPin[i], OUTPUT);
-
-    //   // digitalWrite(batStatusPin[i], LOW);
-    //   // delay(250);
-    //   // digitalWrite(batStatusPin[i], HIGH);
-    //   // delay(500);
-    //   // digitalWrite(batStatusPin[i], LOW);
-    // }
-
-    // digitalWrite(batStatusPin[2], HIGH);
-
   }
 
   // task setup
